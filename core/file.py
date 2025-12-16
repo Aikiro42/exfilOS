@@ -1,24 +1,32 @@
 import json
 from .const import *
-from .colors import color, DIR_COLOR
+from .colors import color
 
 class File:
-  def __init__(self, name:str, isDir:bool, data:str="", parent:File=None):
+  def __init__(self, name:str, isDir:bool, data:str="", parent:File=None, root:File=None):
     self.isDir = isDir
     self.name = name
     self.data = {} if isDir else data
     self.parent = parent
+    if root is None:
+      self.root = self
 
-  def nano(self, file:str, replace=False):
+  def nano(self, path:str, replace=False):
     if not self.isDir:
       print(f"ERROR: No files inside file {self.name}")
       return
-    if file not in self.data.keys():
-      print(f"ERROR: file {file} does not exist")
-      return
     
-    tgt = self.data[file]
+    pathlist = path.split("/")
+    dirpath = "/".join(pathlist[:-1])
+    tgt = self.followPath(dirpath)
+    file = pathlist[-1]
+
+    if file not in tgt.data.keys():
+      tgt.touch(file)
+    
+    tgt = tgt.getFile(file)
     new_data = ""
+    
     while True:
       data_in = input()
       if data_in == "EOF": break
@@ -37,11 +45,11 @@ class File:
       return
     tgt = self
     if path != "":
-      tgt = self.followPath(path, root)
-      
+      tgt = self.followPath(path)
+
     for file in tgt.data.values():
       if file.name[0] == '.' and not all: continue  # skip hidden files
-      print(f"{'  '*level}{color(file.name, DIR_COLOR) if file.isDir else file.name}")
+      print(f"{'  '*level}{color(file.name, bcolors.DIR) if file.isDir else file.name}")
       if recursive and MAX_LS_RECRSION > level + 1:
         file.ls(recursive=True, all=all, level=level+1)  # won't ls if file
 
@@ -52,7 +60,7 @@ class File:
     if not self.isDir:
       print(f"ERROR: cannot make file within {self.name}, is file")
       return
-    self.data[name] = File(name, isDir, parent=self)
+    self.data[name] = File(name, isDir, parent=self, root=self.root)
   
   # dir operation
   # returns file with filename `name` within itself
@@ -70,7 +78,7 @@ class File:
     if not self.isDir:
       print(f"ERROR: Cannot retrieve file from {self.name}, is file")
       return
-    tgt:File = self.followPath(path, root)
+    tgt:File = self.followPath(path)
     if tgt.isDir:
       print(f"ERROR: Cannot cat {self.name}, is dir")
       return
@@ -80,7 +88,7 @@ class File:
   # dir operation
   # Follows path starting from self
   # Returns the final file in the path
-  def followPath(self, path: str, root: File = None) -> File | None:
+  def followPath(self, path: str, dirOnly:bool=False) -> File | None:
     current: File = self
     
     if not current.isDir:
@@ -94,11 +102,11 @@ class File:
 
       if name == "": continue  # empty, don't process
       
-      if name == ROOT_NAME:  # goto root
-        if root is None:
+      if name == self.root.name:  # goto root
+        if self.root is None:
           print("ERROR: No root specified")
           return None
-        current = root
+        current = self.root
         continue
       
       if name == "..":  # goto parent
@@ -113,6 +121,9 @@ class File:
       if current is None:
         # error already thrown by getFile
         break
+      if dirOnly and not current.isDir:
+        print("ERROR: Attempted to follow path into file.")
+        return None
 
     return current
   
@@ -145,12 +156,12 @@ class File:
   
   # dir operation
   # removes directory
-  def rmdir(self, path:str, recursive:bool=False, root:File=None):
+  def rmdir(self, path:str, recursive:bool=False):
     if not self.isDir:
       print(f"ERROR: {self.name} is not dir")
       return
     
-    rmtgt = self.followPath(path, root=root)
+    rmtgt = self.followPath(path)
     if rmtgt == None:
       # error already thrown by followPath
       return
@@ -179,10 +190,6 @@ class File:
 
   def mkdir(self, name):
     self.touch(name, isDir=True)
-
-class FileSystem:
-  def __init__(self):
-    self.root = File(ROOT_NAME, True)
 
 def processExport(filetree:File) -> dict | str:
   if not filetree.isDir:

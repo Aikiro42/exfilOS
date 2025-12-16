@@ -5,13 +5,21 @@ ROOT_NAME = "~"
 
 class bcolors:
     HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKMAGENTA = '\033[95m'
-    OKYELLOW = '\033[93m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
+    OK = '\033[96m'
+    WARNING = '\033[33m'
+    ERROR = '\033[91m'
+    
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
+    PROFILE = '\033[93m'
+    CWD = '\033[95m'
+    DIR = '\033[95m'
+    
+    RED = '\033[91m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    YELLOW = '\033[93m'
+    GREEN = '\033[92m'

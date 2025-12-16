@@ -6,7 +6,7 @@ current:File = ROOT
 current_path = current.tracePath()
 
 while True:
-  cmd = input(f"{color(user, bcolors.OKYELLOW)}:{color(current_path, bcolors.OKMAGENTA)}$ ").split(" ")
+  cmd = input(f"{color(user, bcolors.PROFILE)}:{color(current_path, bcolors.CWD)}$ ").split(" ")
 
   if cmd[0] in ('exit', 'logout'):
     exportFiles(ROOT)
@@ -18,7 +18,7 @@ while True:
     recursive = "-r" in cmd
     all = "-a" in cmd
     if len(cmd) > 1:
-      current.ls(recursive=recursive, all=all, path=cmd[1], root=ROOT)
+      current.ls(recursive=recursive, all=all, path=cmd[1])
     else:
       current.ls(recursive=recursive, all=all)
 
@@ -26,8 +26,10 @@ while True:
     if len(cmd) < 2:
       print("ERROR: Path not specified")
     else:
-      current = current.followPath(cmd[1], ROOT)
-      current_path = current.tracePath()
+      tgt = current.followPath(cmd[1], dirOnly=True)
+      if tgt is not None:
+        current = tgt
+        current_path = current.tracePath()
   
   elif cmd[0] == "mkdir":
     if len(cmd) < 2:
