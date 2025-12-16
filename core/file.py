@@ -11,7 +11,7 @@ class File:
     if root is None:
       self.root = self
 
-  def nano(self, path:str, replace=False):
+  def edit(self, path:str, replace=False):
     if not self.isDir:
       print(f"ERROR: No files inside file {self.name}")
       return
@@ -25,18 +25,16 @@ class File:
       tgt.touch(file)
     
     tgt = tgt.getFile(file)
-    new_data = ""
-    
+    new_data = "" if replace else tgt.data
+    print(new_data, end="")
+
     while True:
       data_in = input()
       if data_in == "EOF": break
-      new_data += data_in
+      new_data += f"{data_in}\n"
     
-    if replace:
-      tgt.data = new_data
-    else:
-      tgt.data += new_data
-
+    tgt.data = new_data
+    
   # dir operation
   # lists all files within
   def ls(self, recursive:bool=False, all:bool=False, path:str="", root:File=None, level:int=0):

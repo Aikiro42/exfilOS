@@ -48,7 +48,7 @@ while True:
       print("ERROR: File not specified")
     else:
       replace = "-r" in cmd
-      current.nano(cmd[1], replace)
+      current.edit(cmd[1], replace)
   
   elif cmd[0] == "cat":
     if len(cmd) < 2:
