@@ -25,13 +25,14 @@ class File:
       tgt.touch(file)
     
     tgt = tgt.getFile(file)
-    new_data = "" if replace else tgt.data
-    print(new_data, end="")
+    new_data = ""
 
+    print("Press Ctrl+D to finish input.")
     while True:
-      data_in = input()
-      if data_in == "EOF": break
-      new_data += f"{data_in}\n"
+      try:
+        new_data += input()
+      except:
+        break
     
     tgt.data = new_data
     
