@@ -2,6 +2,7 @@ from core.file import *
 import core.shell as sh
 from core.shell import Command
 from core.colors import color, bcolors
+import os
 import readline
 
 user:str = "user@PythonOS"
@@ -21,6 +22,10 @@ while True:
   elif cmd.exec in ('exit', 'logout'):
     break
 
+  # clear
+  if cmd.exec in ("clear", "cls"):
+    os.system("cls" if os.name == "nt" else "clear")
+    
   # list directories
   elif cmd.exec in ("l", "ls"):
     recursive = "r" in cmd.lflags or "recursive" in cmd.wflags
