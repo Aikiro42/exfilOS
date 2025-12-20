@@ -45,6 +45,8 @@ class File:
     tgt = self
     if path != "":
       tgt = self.followPath(path)
+      if tgt is None:
+        return
 
     for file in tgt.data.values():
       if file.name[0] == '.' and not all: continue  # skip hidden files

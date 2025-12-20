@@ -1,57 +1,77 @@
 from core.file import *
+import core.shell as sh
+from core.shell import Command
 from core.colors import color, bcolors
+import readline
 
 user:str = "user@PythonOS"
 current:File = ROOT
 current_path = current.tracePath()
 
 while True:
-  cmd = input(f"{color(user, bcolors.PROFILE)}:{color(current_path, bcolors.CWD)}$ ").split(" ")
-
-  if cmd[0] in ('exit', 'logout'):
-    exportFiles(ROOT)
+  try:
+    cmdstr = input(f"{color(user, bcolors.PROFILE)}:{color(current_path, bcolors.CWD)}$ ")
+    cmd:Command = sh.parse(cmdstr)
+  except EOFError:
     break
-  elif cmd[0] == "help":
-    print("There is no help.")
   
-  elif cmd[0] == "ls":
-    recursive = "-r" in cmd
-    all = "-a" in cmd
-    if len(cmd) > 1:
-      current.ls(recursive=recursive, all=all, path=cmd[1])
+  # manual/help
+  if (cmd.exec in ("help", "man")) or ("help" in cmd.wflags) or ("?" in cmd.lflags):
+    print("There is no help.")
+  elif cmd.exec in ('exit', 'logout'):
+    break
+
+  # list directories
+  elif cmd.exec in ("l", "ls"):
+    recursive = "r" in cmd.lflags or "recursive" in cmd.wflags
+    all = "a" in cmd.lflags or "all" in cmd.wflags
+    if len(cmd.args) > 0:
+      current.ls(recursive=recursive, all=all, path=cmd.args[0])
     else:
       current.ls(recursive=recursive, all=all)
 
-  elif cmd[0] == "cd":
-    if len(cmd) < 2:
-      print("ERROR: Path not specified")
-    else:
-      tgt = current.followPath(cmd[1], dirOnly=True)
+  # change directory
+  elif cmd.exec == "cd":
+    if len(cmd.args) > 0:
+      tgt = current.followPath(cmd.args[0], dirOnly=True)
       if tgt is not None:
         current = tgt
         current_path = current.tracePath()
+    else:
+      current = ROOT
+      current_path = current.tracePath()
   
-  elif cmd[0] == "mkdir":
-    if len(cmd) < 2:
+  # make directory
+  elif cmd.exec == "mkdir":
+    if len(cmd.args) > 0:
+      current.mkdir(cmd.args[0])
+    else:
       print("ERROR: Path not specified")
-    else:
-      current.mkdir(cmd[1])
   
-  elif cmd[0] in ("touch", "mkfile"):
-    if len(cmd) < 2:
-      print("ERROR: File not specified")
+  # make file
+  elif cmd.exec in ("touch", "mkfile"):
+    if len(cmd.args) > 0:
+      current.touch(cmd.args[0])
     else:
-      current.touch(cmd[1])
+      print("ERROR: File not specified")
 
-  elif cmd[0] == "nano":
-    if len(cmd) < 2:
-      print("ERROR: File not specified")
+  # code
+  elif cmd.exec in ("code", "nano", "vim"):
+    if len(cmd.args) > 0:
+      replace = "r" in cmd.lflags or "recursive" in cmd.wflags
+      current.edit(cmd.args[0], replace)
     else:
-      replace = "-r" in cmd
-      current.edit(cmd[1], replace)
+      print("ERROR: File not specified")
   
-  elif cmd[0] == "cat":
-    if len(cmd) < 2:
-      print("ERROR: File not specified")
+  # view file
+  elif cmd.exec in ("cat", "view"):
+    if len(cmd.args) > 0:
+      current.cat(cmd.args[0])
     else:
-      current.cat(cmd[1])
+      print("ERROR: File not specified")
+  
+  elif cmd.exec == "save":
+    exportFiles(ROOT) 
+
+print("")
+exportFiles(ROOT)
