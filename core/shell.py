@@ -4,6 +4,7 @@ from core.colors import color, bcolors
 from core.host import Host
 from random import randint
 import readline, math, os, time
+import threading
 
 class Command:
   def __init__(self, exec: str, args: list[str], lflags:str, wflags:list[str]):
@@ -18,6 +19,8 @@ class Mollusk:
     self.home = host
     self.changeHost(host)
     self.running = False
+    self.timers = {}
+    self.logs = []
 
   def start(self):
     self.running = True
@@ -32,9 +35,13 @@ class Mollusk:
       self.host = host
     self.cwd = self.host.rootdir
     self.cwdstr = self.cwd.name
+  
+  @property
+  def promptString(self):
+    return f"{color(f"{self.user}@{self.host.name}", bcolors.PROFILE)}:{color(self.cwdstr, bcolors.CWD)}$ "
 
   def prompt(self, promptString:str=""):
-    s = f"{color(f"{self.user}@{self.host.name}", bcolors.PROFILE)}:{color(self.cwdstr, bcolors.CWD)}$ "
+    s = self.promptString
     if promptString != "":
       s = promptString
     self.run(Mollusk.parse(input(s)))
@@ -65,6 +72,8 @@ class Mollusk:
     # manual/help
     if (cmd.exec in ("help", "man")) or ("help" in cmd.wflags) or ("?" in cmd.lflags):
       print("There is no help.")
+
+    # logout
     elif cmd.exec in ('quit', 'exit', 'logout'):
       Mollusk.loadbar()
       self.stop()
@@ -126,22 +135,51 @@ class Mollusk:
       Mollusk.loadbar()
       exportFiles(self.home.rootdir)
       print(color("Saved successfully!", bcolors.CYAN))
+
+    # timer
+    elif cmd.exec == "timer":
+      if len(cmd.args) <= 0:
+        print("ERROR: No duration or timer name specified")
+      else:
+        duration = 0
+        try:
+          duration = int(cmd.args[0])
+          self.startTimer("default", duration)
+        except:
+          if len(cmd.args) == 1:
+            self.checkTimer(cmd.args[0])
+          else:
+            try:
+              duration = int(cmd.args[1])
+              self.startTimer(cmd.args[0], duration)
+            except: print("ERROR: Invalid Duration")
+
+    # blank
     elif cmd.exec == "":
       pass
+
+    # unknown
     else:
       print(f"ERROR: No command found with name \"{cmd.exec}\"")
 
-  def ls(self, cmd: Command):
-    if len(cmd.args) == 0:
-      ...
+  def startTimer(self, name:str, duration: int):
+    timerTime = self.timers.get(name, -1)
+    if timerTime <= 0:
+      def t():
+        while self.timers[name] > 0:
+          time.sleep(1)
+          self.timers[name] -= 1
+        print(color(f"{name}: Time's up!", bcolors.CYAN), end="")
+      self.timers[name] = duration
+      threading.Thread(target=t, daemon=True).start()
     else:
-      file:str = cmd.args[1]
+      print(f"ERROR: Timer {name} already running ({timerTime}s left)")
 
-  def cd(self, cmd: Command):
-    if len(cmd.args) == 0:
-      self.cwd = self.host.rootdir
-    else:
-      file:str = cmd.args[1]
+  def checkTimer(self, name:str):
+    time_left = self.timers.get(name, -1)
+    if time_left <= 0:
+      del self.timers[name]
+    print(f"{name}: {time_left} s")
 
   def loadbar(duration=1, barlength=30):
     progress = 0
