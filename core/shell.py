@@ -3,7 +3,9 @@ from core.file import *
 from core.colors import color, bcolors
 from core.host import Host
 from random import randint
-import readline, math, os, time
+from prompt_toolkit import prompt
+from prompt_toolkit.formatted_text import ANSI
+import math, os, time
 import threading
 
 class Command:
@@ -45,7 +47,7 @@ class Mollusk:
     if promptString != "":
       s = promptString
     try:
-      cmdstr = input(s)
+      cmdstr = prompt(ANSI(s))
       self.run(Mollusk.parse(cmdstr))
     except EOFError:
       self.stop()

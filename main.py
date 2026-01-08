@@ -2,12 +2,13 @@ from core.file import *
 from core.shell import Command, Mollusk
 from core.game import Player
 from core.colors import color, bcolors
+from prompt_toolkit import prompt
+from prompt_toolkit.formatted_text import ANSI
 import os
-import readline
 
 def gameinit():
   os.system("cls" if os.name == "nt" else "clear")
-  pname = input(color("Enter username: ", bcolors.INFO))
+  pname = prompt(ANSI(color("Enter username: ", bcolors.INFO)))
   if pname == "": pname = "guest"
   p = Player(pname)
   print(color(f"Welcome, {pname}! Logging in...", bcolors.OK))
