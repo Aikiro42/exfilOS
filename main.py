@@ -10,7 +10,7 @@ p = None
 def gameinit():
   global p
   os.system("cls" if os.name == "nt" else "clear")
-  pname = input("Enter username: ")
+  pname = input(color("Enter username: ", bcolors.CYAN))
   if pname == "": pname = "guest"
   p = Player(pname)
   print(f"Welcome, {p}! Logging in...")

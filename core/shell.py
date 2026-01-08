@@ -2,9 +2,8 @@
 from core.file import *
 from core.colors import color, bcolors
 from core.host import Host
-import readline
-import curses
-import os
+from random import randint
+import readline, math, os, time
 
 class Command:
   def __init__(self, exec: str, args: list[str], lflags:str, wflags:list[str]):
@@ -67,6 +66,7 @@ class Mollusk:
     if (cmd.exec in ("help", "man")) or ("help" in cmd.wflags) or ("?" in cmd.lflags):
       print("There is no help.")
     elif cmd.exec in ('quit', 'exit', 'logout'):
+      Mollusk.loadbar()
       self.stop()
 
     # clear
@@ -122,7 +122,9 @@ class Mollusk:
         print("ERROR: File not specified")
     
     elif cmd.exec == "save":
+      Mollusk.loadbar()
       exportFiles(ROOT)
+      print(color("Saved successfully!", bcolors.CYAN))
     elif cmd.exec == "":
       pass
     else:
@@ -139,3 +141,14 @@ class Mollusk:
       self.cwd = self.host.rootdir
     else:
       file:str = cmd.args[1]
+
+  def loadbar(duration=1, barlength=30):
+    progress = 0
+    while progress < 100:
+      filllen = min(barlength, math.floor(progress*barlength/duration))
+      print(f"\r[{'|' * filllen}{' ' * (barlength-filllen)}]", end="")
+      progadd = randint(1, 5)
+      progress += progadd
+      time.sleep(duration*progadd/100)
+
+    print()
