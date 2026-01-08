@@ -7,10 +7,10 @@ import readline
 
 def gameinit():
   os.system("cls" if os.name == "nt" else "clear")
-  pname = input(color("Enter username: ", bcolors.CYAN))
+  pname = input(color("Enter username: ", bcolors.INFO))
   if pname == "": pname = "guest"
   p = Player(pname)
-  print(f"Welcome, {p}! Logging in...")
+  print(color(f"Welcome, {pname}! Logging in...", bcolors.OK))
   Mollusk.loadbar()
   return p
   

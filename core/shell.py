@@ -137,9 +137,11 @@ class Mollusk:
     
     # save progress
     elif cmd.exec == "save":
-      Mollusk.loadbar()
-      exportFiles(self.home.rootdir)
-      print(color("Saved successfully!", bcolors.CYAN))
+      if Mollusk.loadbar(failChance=0.05):
+        exportFiles(self.home.rootdir)
+        print(color("Saved successfully!", bcolors.OK))
+      else:
+        print(color("Save Failed!", bcolors.ERROR))
 
     # timer
     elif cmd.exec == "timer":
@@ -174,7 +176,7 @@ class Mollusk:
         while self.timers[name] > 0:
           time.sleep(1)
           self.timers[name] -= 1
-        print(color(f"{name}: Time's up!", bcolors.CYAN), end="")
+        print(color(f"{name}: Time's up!", bcolors.INFO), end="")
       self.timers[name] = duration
       threading.Thread(target=t, daemon=True).start()
     else:
@@ -187,13 +189,19 @@ class Mollusk:
     print(f"{name}: {time_left} s")
 
   @staticmethod
-  def loadbar(duration=1, barlength=30):
+  def loadbar(duration=1, barlength=30, failChance:float=0):
     progress = 0
-    while progress < 100:
-      filllen = min(barlength, math.floor(progress*barlength/100))
-      print(f"\r[{'|' * filllen}{' ' * (barlength-filllen)}]", end="")
+    filllen = 0
+    maxProgress = 100
+    if (randint(0, 100) / 100) < failChance:
+        maxProgress = randint(0, 99)
+    while progress < maxProgress:
+      filllen = min(barlength, math.ceil(progress*barlength/100))
+      print(color(f"\r[{'|' * filllen}{' ' * (barlength-filllen)}]", bcolors.INFO), end="")
       progadd = randint(1, 5)
       progress += progadd
       time.sleep(duration*progadd/100)
-
+    else:
+      print(color(f"\r[{'|' * barlength}]", bcolors.OK if maxProgress == 100 else bcolors.ERROR), end="")
     print()
+    return maxProgress == 100
