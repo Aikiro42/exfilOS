@@ -6,8 +6,8 @@ class File:
   def __init__(self, name:str, isDir:bool, data:str="", parent:File=None, root:File=None):
     self.isDir = isDir
     self.name = name
-    self.data = {} if isDir else data
     self.parent = parent
+    self.data = {".": self, "..": parent} if isDir else data
     if root is None:
       self.root = self
 
@@ -75,13 +75,13 @@ class File:
       return None
     return self.data[name]
   
-  def cat(self, path:str, root:File=None):
+  def read(self, path:str, root:File=None):
     if not self.isDir:
       print(f"ERROR: Cannot retrieve file from {self.name}, is file")
       return
     tgt:File = self.followPath(path)
     if tgt.isDir:
-      print(f"ERROR: Cannot cat {self.name}, is dir")
+      print(f"ERROR: Cannot read {self.name}, is dir")
       return
     print(tgt.data)
     

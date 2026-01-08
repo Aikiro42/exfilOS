@@ -1,9 +1,16 @@
 from core.file import *
-import core.shell as sh
 from core.shell import Command, Mollusk
+from core.host import Host
 from core.colors import color, bcolors
 import os
 import readline
+
+
+def gameinit():
+  ...
+
+def gameloop():
+  ...
 
 def run(user:str="user", host:str="localhost", root=ROOT):
   
@@ -15,7 +22,7 @@ def run(user:str="user", host:str="localhost", root=ROOT):
   while True:
     try:
       cmdstr = input(f"{color(f"{user}@{host}", bcolors.PROFILE)}:{color(current_path, bcolors.CWD)}$ ")
-      cmd:Command = sh.parse(cmdstr)
+      cmd:Command = Mollusk.parse(cmdstr)
     except EOFError:
       break
     
@@ -74,7 +81,7 @@ def run(user:str="user", host:str="localhost", root=ROOT):
     # view file
     elif cmd.exec in ("cat", "view", "read"):
       if len(cmd.args) > 0:
-        current.cat(cmd.args[0])
+        current.read(cmd.args[0])
       else:
         print("ERROR: File not specified")
     
@@ -90,4 +97,5 @@ def run(user:str="user", host:str="localhost", root=ROOT):
 
 
 if __name__ == "__main__":
-  run()
+  gameinit()
+  gameloop()
