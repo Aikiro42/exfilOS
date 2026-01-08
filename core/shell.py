@@ -44,7 +44,11 @@ class Mollusk:
     s = self.promptString
     if promptString != "":
       s = promptString
-    self.run(Mollusk.parse(input(s)))
+    try:
+      cmdstr = input(s)
+      self.run(Mollusk.parse(cmdstr))
+    except EOFError:
+      self.stop()
 
   def parse(cmd: str) -> Command:
     # Static function that parses a string into a command
@@ -184,7 +188,7 @@ class Mollusk:
   def loadbar(duration=1, barlength=30):
     progress = 0
     while progress < 100:
-      filllen = min(barlength, math.floor(progress*barlength/duration))
+      filllen = min(barlength, math.floor(progress*barlength/100))
       print(f"\r[{'|' * filllen}{' ' * (barlength-filllen)}]", end="")
       progadd = randint(1, 5)
       progress += progadd
