@@ -14,7 +14,7 @@ class Command:
     self.lflags = lflags
     self.wflags = wflags
 
-def parse(cmd):
+def parse(cmd: str) -> Command:
   split = cmd.split(" ")
   args = []
   exe = ""
