@@ -110,8 +110,7 @@ class Mollusk:
     # code
     elif cmd.exec in ("edit", "code", "nano", "vim"):
       if len(cmd.args) > 0:
-        replace = "r" in cmd.lflags or "recursive" in cmd.wflags
-        self.cwd.edit(cmd.args[0], replace)
+        self.cwd.edit(cmd.args[0])
       else:
         print("ERROR: File not specified")
     

@@ -10,7 +10,9 @@ p = None
 def gameinit():
   global p
   os.system("cls" if os.name == "nt" else "clear")
-  p = Player(input("Enter username: "))
+  pname = input("Enter username: ")
+  if pname == "": pname = "guest"
+  p = Player(pname)
   print(f"Welcome, {p}! Logging in...")
   
 
@@ -19,6 +21,9 @@ def gameloop():
   p.shell.start()
   while p.shell.running:
     p.shell.prompt()
+  os.system("cls" if os.name == "nt" else "clear")
+  print("Logging out...")
+  exportFiles(p.home.rootdir)
   os.system("cls" if os.name == "nt" else "clear")
 
 

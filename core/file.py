@@ -198,6 +198,7 @@ def processExport(filetree:File) -> dict | str:
   
   root = {}
   for filename, file in filetree.data.items():
+    if filename == "." or filename == "..": continue
     root[filename]  = processExport(file)
 
   return root
