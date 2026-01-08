@@ -11,7 +11,7 @@ class File:
     if root is None:
       self.root = self
 
-  def edit(self, path:str, replace=False):
+  def edit(self, path:str):
     if not self.isDir:
       print(f"ERROR: No files inside file {self.name}")
       return

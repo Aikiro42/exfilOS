@@ -1,12 +1,12 @@
 from core.file import *
 import core.shell as sh
-from core.shell import Command
+from core.shell import Command, Mollusk
 from core.colors import color, bcolors
 import os
 import readline
 
-def run():
-  user:str = "user@PythonOS"
+def run(user:str="user", host:str="localhost", root=ROOT):
+  
   current:File = ROOT
   current_path = current.tracePath()
 
@@ -14,7 +14,7 @@ def run():
 
   while True:
     try:
-      cmdstr = input(f"{color(user, bcolors.PROFILE)}:{color(current_path, bcolors.CWD)}$ ")
+      cmdstr = input(f"{color(f"{user}@{host}", bcolors.PROFILE)}:{color(current_path, bcolors.CWD)}$ ")
       cmd:Command = sh.parse(cmdstr)
     except EOFError:
       break
@@ -79,7 +79,11 @@ def run():
         print("ERROR: File not specified")
     
     elif cmd.exec == "save":
-      exportFiles(ROOT) 
+      exportFiles(ROOT)
+    elif cmd.exec == "":
+      continue
+    else:
+      print(f"ERROR: No command found with name \"{cmd.exec}\"")
 
   print("")
   exportFiles(ROOT)

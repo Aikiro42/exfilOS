@@ -14,6 +14,20 @@ class Command:
     self.lflags = lflags
     self.wflags = wflags
 
+class Mollusk:
+  def __init__(self, user:str="user") -> None:
+    self.user = user
+    self.running = False
+
+  def run(self):
+    self.running = True
+    while self.running:
+      ...
+
+  def stop(self):
+    self.running = False
+
+
 def parse(cmd: str) -> Command:
   split = cmd.split(" ")
   args = []
@@ -21,6 +35,7 @@ def parse(cmd: str) -> Command:
   lflags = ""
   wflags = []
   for arg in split:
+    if len(arg) <= 0: continue
     if arg[:2] == "--":
       wflags += [arg[2:]]
     elif arg[0] == "-":
