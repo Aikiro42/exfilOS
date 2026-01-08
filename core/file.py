@@ -7,9 +7,9 @@ class File:
     self.isDir = isDir
     self.name = name
     self.parent = parent
-    self.data = {".": self, "..": parent} if isDir else data
     if root is None:
       self.root = self
+    self.data = {".": self, "..": parent} if isDir else data
 
   def edit(self, path:str):
     if not self.isDir:
@@ -48,8 +48,8 @@ class File:
       if tgt is None:
         return
 
-    for file in tgt.data.values():
-      if file.name[0] == '.' and not all: continue  # skip hidden files
+    for filename, file in tgt.data.items():
+      if filename[0] == '.' and not all: continue  # skip hidden files
       print(f"{'  '*level}{color(file.name, bcolors.DIR) if file.isDir else file.name}")
       if recursive and MAX_LS_RECRSION > level + 1:
         file.ls(recursive=True, all=all, level=level+1)  # won't ls if file

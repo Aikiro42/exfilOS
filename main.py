@@ -1,16 +1,26 @@
 from core.file import *
 from core.shell import Command, Mollusk
-from core.host import Host
+from core.game import Player
 from core.colors import color, bcolors
 import os
 import readline
 
+p = None
 
 def gameinit():
-  ...
+  global p
+  os.system("cls" if os.name == "nt" else "clear")
+  p = Player(input("Enter username: "))
+  print(f"Welcome, {p}! Logging in...")
+  
 
 def gameloop():
-  ...
+  os.system("cls" if os.name == "nt" else "clear")
+  p.shell.start()
+  while p.shell.running:
+    p.shell.prompt()
+  os.system("cls" if os.name == "nt" else "clear")
+
 
 def run(user:str="user", host:str="localhost", root=ROOT):
   
