@@ -1,9 +1,10 @@
+from enum import Enum
 
 CMD_HISTORY_LIMIT = 32
 MAX_LS_RECRSION = 5
 ROOT_NAME = "~"
 
-class bcolors:
+class bcolors(str, Enum):
     HEADER = '\033[95m'
     OK = '\033[96m'
     WARNING = '\033[33m'

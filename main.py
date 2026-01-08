@@ -5,18 +5,17 @@ from core.colors import color, bcolors
 import os
 import readline
 
-p = None
-
 def gameinit():
-  global p
   os.system("cls" if os.name == "nt" else "clear")
   pname = input(color("Enter username: ", bcolors.CYAN))
   if pname == "": pname = "guest"
   p = Player(pname)
   print(f"Welcome, {p}! Logging in...")
+  Mollusk.loadbar()
+  return p
   
 
-def gameloop():
+def gameloop(p: Player):
   os.system("cls" if os.name == "nt" else "clear")
   p.shell.start()
   while p.shell.running:
@@ -27,5 +26,5 @@ def gameloop():
   os.system("cls" if os.name == "nt" else "clear")
 
 if __name__ == "__main__":
-  gameinit()
-  gameloop()
+  p = gameinit()
+  gameloop(p)

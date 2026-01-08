@@ -1,9 +1,10 @@
 import json
+from typing import Dict
 from .const import *
 from .colors import color
 
 class File:
-  def __init__(self, name:str, isDir:bool, data:str="", parent:File=None, root:File=None):
+  def __init__(self, name:str, isDir:bool, data:str|Dict[str, File]="", parent:File|None=None, root:File|None=None):
     self.isDir = isDir
     self.name = name
     self.parent = parent
@@ -13,18 +14,27 @@ class File:
 
   def edit(self, path:str):
     if not self.isDir:
-      print(f"ERROR: No files inside file {self.name}")
+      print(f"ERROR: No files inside file {self.name}???")
       return
     
     pathlist = path.split("/")
     dirpath = "/".join(pathlist[:-1])
     tgt = self.followPath(dirpath)
+
+    if tgt is None:
+      print(f"ERROR: tgt is none???")
+      return
+    
     file = pathlist[-1]
 
-    if file not in tgt.data.keys():
+    if file not in tgt.data.keys(): # type: ignore
       tgt.touch(file)
     
     tgt = tgt.getFile(file)
+    if tgt is None:
+      print(f"ERROR: tgt is none 2???")
+      return
+
     new_data = ""
 
     print("Press Ctrl+D to finish input.")
@@ -48,7 +58,7 @@ class File:
       if tgt is None:
         return
 
-    for filename, file in tgt.data.items():
+    for filename, file in tgt.data.items(): # type: ignore
       if filename[0] == '.' and not all: continue  # skip hidden files
       print(f"{'  '*level}{color(file.name, bcolors.DIR) if file.isDir else file.name}")
       if recursive and MAX_LS_RECRSION > level + 1:
@@ -61,7 +71,7 @@ class File:
     if not self.isDir:
       print(f"ERROR: cannot make file within {self.name}, is file")
       return
-    self.data[name] = File(name, isDir, parent=self, root=self.root)
+    self.data[name] = File(name, isDir, parent=self, root=self.root) # type: ignore
   
   # dir operation
   # returns file with filename `name` within itself

@@ -50,6 +50,7 @@ class Mollusk:
     except EOFError:
       self.stop()
 
+  @staticmethod
   def parse(cmd: str) -> Command:
     # Static function that parses a string into a command
     split = cmd.split(" ")
@@ -185,6 +186,7 @@ class Mollusk:
       del self.timers[name]
     print(f"{name}: {time_left} s")
 
+  @staticmethod
   def loadbar(duration=1, barlength=30):
     progress = 0
     while progress < 100:
