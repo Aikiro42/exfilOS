@@ -121,9 +121,10 @@ class Mollusk:
       else:
         print("ERROR: File not specified")
     
+    # save progress
     elif cmd.exec == "save":
       Mollusk.loadbar()
-      exportFiles(ROOT)
+      exportFiles(self.home.rootdir)
       print(color("Saved successfully!", bcolors.CYAN))
     elif cmd.exec == "":
       pass
