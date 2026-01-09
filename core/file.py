@@ -23,7 +23,7 @@ class FileSystem:
     # Returns the final file in the path.
     # (remember that dirs are files too)
     # If the path to the file does not exist, returns None.
-
+    path: str = '/'.join(pathList)
     current: File | None = self.cwd if fromFile is None else fromFile
 
     # if first filename in the path is the root
