@@ -231,6 +231,13 @@ class File:
     if tgt is None: return None
     if tgt.isDir: return None
     return tgt.data
+
+  def editFile(self, name:str, new_data:str) -> bool:
+    tgt = self.getFile(name)
+    if tgt is None: return False
+    if tgt.isDir: return False
+    tgt.data = new_data
+    return True
     
   def removeFile(self, name:str, recursive:bool=False) -> File | None:
     # Removes a file with the associated name from its File dictionary
@@ -264,6 +271,9 @@ class File:
     tgt.name = new_name
     self.data[new_name] = self.data.pop(old_name)
     return True
+  
+  def rename(self, new_name: str) -> bool:
+    return self.parent.renameFile(self.name, new_name)
 
   def edit(self, path:str):
     if not self.isDir:
