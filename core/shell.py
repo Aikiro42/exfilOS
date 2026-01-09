@@ -39,12 +39,12 @@ class Mollusk:
       self.host = self.home
     else:
       self.host = host
-    self.cwd = self.host.rootdir
-    self.cwdstr = self.cwd.name
+    self.cwd = self.host.fs.cwd
+    self.cwdstr = self.cwd.path
   
   @property
   def promptString(self):
-    return f"{color(f"{self.user}@{self.host.name}", bcolors.PROFILE)}:{color(self.cwdstr, bcolors.CWD)}$ "
+    return f"{color(f"{self.user}@{self.host.name}", bcolors.PROFILE)}:{color(self.cwd.path, bcolors.CWD)}$ "
 
   def prompt(self, promptString:str=""):
     s = self.promptString
@@ -57,6 +57,38 @@ class Mollusk:
       self.stop()
   
   def run(self, cmd: Command):
+    aliases = {
+      "quit": "logout",
+      "exit": "logout",
+
+      "cls": "clear",
+      
+      "l": "ls",
+
+      "touch": "mkfile",
+      
+      "code": "edit",
+      "nano": "edit",
+      "vim": "edit",
+
+      "cat": "read",
+      "view": "read",
+
+      "backup": "savegame",
+      "save": "savegame",
+
+      "restart": "loadgame",
+      "reload": "loadgame",
+
+      "backpack": "viewCache",
+      "cache": "viewCache",
+
+      "dl": "download",
+      "wget": "download",
+      "curl": "download"
+
+    }
+
     # manual/help
     if (cmd.exec in ("help", "man")) or ("help" in cmd.wflags) or ("?" in cmd.lflags):
       print("There is no help.")

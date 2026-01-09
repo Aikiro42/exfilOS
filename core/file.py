@@ -4,8 +4,11 @@ from .const import *
 from .colors import color
 
 class FileSystem:
-  def __init__(self):
-    self.root = File("~", is_dir=True)
+  def __init__(self, root:File|None=None):
+    self.root = File("~", isDir=True)
+    if root is not None:
+      if root.isDir:
+        self.root=root
     self.cwd = self.root
 
   @property

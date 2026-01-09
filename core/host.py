@@ -1,8 +1,8 @@
-from core.file import File, ROOT
+from core.file import File, FileSystem, ROOT
 
 class Host:
-  def __init__(self, name:str, root: File):
+  def __init__(self, name:str, root: File | None = None):
     self.name = name
-    self.rootdir = root
+    self.fs = FileSystem(root)
 
 LOCALHOST = Host("localhost", ROOT)
