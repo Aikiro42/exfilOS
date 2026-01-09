@@ -7,14 +7,15 @@ from prompt_toolkit.formatted_text import ANSI
 import os
 
 def gameinit():
+
   os.system("cls" if os.name == "nt" else "clear")
+  p = Player("guest")
+  return p
+
   pname = prompt(ANSI(color("Enter username: ", bcolors.INFO)))
   if pname == "": pname = "guest"
-  p = Player(pname)
   print(color(f"Welcome, {pname}! Logging in...", bcolors.OK))
   Mollusk.loadbar()
-  return p
-  
 
 def gameloop(p: Player):
   os.system("cls" if os.name == "nt" else "clear")

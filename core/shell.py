@@ -28,6 +28,14 @@ class Mollusk:
     self.cache: list[File] = [] if cache is None else cache
     self.cacheCap = cacheCap
 
+  @property
+  def cwd(self):
+    return self.host.fs.cwd
+  
+  @property
+  def cwdstr(self):
+    return self.cwd.path
+
   def start(self):
     self.running = True
 
@@ -39,8 +47,6 @@ class Mollusk:
       self.host = self.home
     else:
       self.host = host
-    self.cwd = self.host.fs.cwd
-    self.cwdstr = self.cwd.path
   
   @property
   def promptString(self):
@@ -121,7 +127,8 @@ class Mollusk:
     # make directory
     elif cmd.exec == "mkdir":
       if len(cmd.args) > 0:
-        self.cwd.mkdir(cmd.args[0])
+        print(cmd.args)
+        self.host.fs.mkdir(cmd.args[0])
       else:
         print("ERROR: Path not specified")
     
@@ -201,22 +208,12 @@ class Mollusk:
       print(f"IMPOSSIBLE: Current working directory is a file")
       return
     
-    tgt = self.cwd
     if len(cmd.args) > 0:
       path = cmd.args[0]
-      tgt = self.cwd.followPath(path)
-      if tgt is None:
-        print(f"ERROR: Path {path} does not exist")
-        return
-      if not tgt.isDir:
-        print(f"ERROR: Path {path} is not a directory")
-        return
+      self.host.fs.ls(path)
+    else:
+      self.host.fs.ls("")
       
-    all = 'a' in cmd.lflags or 'all' in cmd.wflags
-    for filename, file in tgt.data.items(): # type: ignore
-      if filename[0] == '.' and not all: continue  # skip hidden files
-      print(f"{color(file.name, bcolors.DIR) if file.isDir else file.name}")
-
   # SECTION: PROGRAMS
 
   # timer <timer name (optional)> <timer duration in seconds>
