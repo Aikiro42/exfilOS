@@ -4,162 +4,6 @@ from .const import *
 from .colors import color
 from copy import deepcopy
 
-class FileSystem:
-  def __init__(self, root:File|None=None):
-    self.root = File("~", isDir=True)
-    if root is not None:
-      if root.isDir:
-        self.root=root
-    self.cwd = self.root
-
-  @property
-  def currentPath(self):
-    path = self.cwd.name
-    current: File = self.cwd
-    while current.parent is not None:
-      path = f"{current.parent.name}/{path}"
-      current = current.parent
-    return path
-
-  def resolvePath(self, pathList: list[str], fromFile:File|None=None, caller:str='') -> File | None:
-    # Parameters:
-    #   pathList = ordered list of filenames through which to traverse
-    # Returns the final file in the path.
-    # (remember that dirs are files too)
-    # If the path to the file does not exist, returns None.
-    path: str = '/'.join(pathList)
-    current: File | None = self.cwd if fromFile is None else fromFile
-
-    # if first filename in the path is the root
-    # start from root
-    if pathList[0]  == self.root.name:
-      current = self.root
-      pathList = pathList[1:]
-
-    # handle impossible situations
-    if current is None:
-      print(f"PANIC: Cannot resolve path '{path}': null start")
-    if not current.isDir:
-      print(f"PANIC: Cannot resolve path '{path}': Path start '{current.name}' is not a directory")
-
-    for i in range(len(pathList)):
-
-      name = pathList[i]
-      
-      # empty, don't process
-      if name == "": continue
-      
-      # pathing to current file, continue
-      if name == ".":
-        continue
-      
-      # path to parent
-      # if parent is None, assume file is a root
-      if name == "..":  
-        if current.parent is not None:
-          current = current.parent
-        continue
-      
-      # if file along path is not a directory
-      # return None
-      if i < (len(pathList) - 1) and not current.isDir:
-        print(f"{'ERROR' if caller == '' else caller}: Cannot resolve path '{path}': '{current.name}' is not a directory")
-        return None
-
-      # begin checking next element
-      next = current.getFile(name)
-
-      # Return None if file along path isn't found
-      if next is None:
-        print(f"{'ERROR' if caller == '' else caller}: Cannot resolve path '{path}': '{name}' not found")
-        return None
-
-      current = next
-
-    return current
-
-  def ls(self, path: str, recursive:bool = False, all:bool=False):
-    f: File | None = self.resolvePath(path.split("/"), caller='ls')
-    if f is None: return
-    f.ls(path, recursive=recursive, all=all, root=self.root)
-
-  def cd(self, path:str):
-    f: File | None = self.resolvePath(path)
-    if f is None: return
-    if not f.isDir:
-      print(f"cd: {path} is a file, not a directory")
-      return
-    self.cwd = f
-
-  def mkfile(self, path: str, isDir: bool=False):
-    # Creates a file in the specified path.
-    pathList = path.split("/")
-    tgt: File = self.resolvePath(pathList[:-1], caller='mkdir')
-    if tgt is None: return False
-    return tgt.createFile(pathList[-1], isDir) is not None
-  
-  def mkdir(self, path: str) -> bool:
-    return self.mkfile(path, True)
-  
-  def rm(self, path: str, recursive:bool=False) -> bool:
-    tgt: File | None = self.resolvePath(path)
-    if tgt is None: return False
-    if tgt.isDir:
-      if not recursive:
-        print(f"rm: cannot remove '{path}': Is a directory")
-        return False
-      else:
-        return tgt.parent.removeFile(tgt.name, True) is not None
-    else:
-      return tgt.parent.removeFile(tgt.name) is not None
-
-  def mv(self, from_path: str, to_path: str, remove_source: bool=True) -> bool:
-    # obtain file to move fromTarget
-    # and its parent fromTargetParent
-    fromTargetPathlist = from_path.split("/")
-    fromTarget = self.resolvePath(fromTargetPathlist, caller='mv')
-    fromTargetParent = fromTarget.parent
-    if fromTarget is None:
-      return False
-    
-    # obtain toTargetParent
-    toTargetPathlist = to_path.split("/")
-    toTargetParent:File | None = self.resolvePath(toTargetPathlist[:-1], caller='mv')
-    if toTargetParent is None:
-      return False
-    
-    # prepare rename or destination file in which to move fromTarget
-    toTargetName = toTargetPathlist[-1]
-    toTarget = toTargetParent.getFile(toTargetName)
-
-    # case 1: destination exists, move in there
-    if toTarget is not None:
-      if toTarget.addFile(fromTarget if remove_source else deepcopy(fromTarget)):
-        if remove_source: return fromTargetParent.removeFile(fromTarget.name, True) is not None
-        else: return True
-    
-    # case 2: destination DNE, rename file
-    else:
-      
-      # same parent, just rename
-      if fromTargetParent == toTargetParent:
-        if remove_source: return toTargetParent.renameFile(fromTarget.name, toTargetName)
-        else: return toTargetParent.addFile(deepcopy(fromTarget))
-      
-      # different parent, move and rename
-      elif toTargetParent.addFile(fromTarget if remove_source else deepcopy(fromTarget)):
-        if remove_source: fromTargetParent.removeFile(fromTarget.name, True)
-        return toTargetParent.renameFile(fromTarget.name, toTargetName)
-      else:
-        return False
-      
-  def cp(self, from_path: str, to_path: str) -> bool:
-    return self.mv(from_path, to_path, remove_source=False)
-
-  def rename(self, old_name, new_name) -> bool:
-    ...
-
-
 class File:
   def __init__(self, name:str, isDir:bool, data:str|Dict[str, File]="", parent:File|None=None, root:File|None=None):
     self.isDir = isDir
@@ -452,6 +296,165 @@ class File:
 
   def mkdir(self, name):
     self.touch(name, isDir=True)
+
+
+class FileSystem:
+  def __init__(self, root:File|None=None):
+    self.root = File("~", isDir=True)
+    if root is not None:
+      if root.isDir:
+        self.root=root
+    self.cwd = self.root
+
+  @property
+  def currentPath(self):
+    path = self.cwd.name
+    current: File = self.cwd
+    while current.parent is not None:
+      path = f"{current.parent.name}/{path}"
+      current = current.parent
+    return path
+
+  def resolvePath(self, pathList: list[str], fromFile:File|None=None, caller:str='') -> File | None:
+    # Parameters:
+    #   pathList = ordered list of filenames through which to traverse
+    # Returns the final file in the path.
+    # (remember that dirs are files too)
+    # If the path to the file does not exist, returns None.
+    path: str = '/'.join(pathList)
+    current: File | None = self.cwd if fromFile is None else fromFile
+
+    # if first filename in the path is the root
+    # start from root
+    if pathList[0]  == self.root.name:
+      current = self.root
+      pathList = pathList[1:]
+
+    # handle impossible situations
+    if current is None:
+      print(f"PANIC: Cannot resolve path '{path}': null start")
+    if not current.isDir:
+      print(f"PANIC: Cannot resolve path '{path}': Path start '{current.name}' is not a directory")
+
+    for i in range(len(pathList)):
+
+      name = pathList[i]
+      
+      # empty, don't process
+      if name == "": continue
+      
+      # pathing to current file, continue
+      if name == ".":
+        continue
+      
+      # path to parent
+      # if parent is None, assume file is a root
+      if name == "..":  
+        if current.parent is not None:
+          current = current.parent
+        continue
+      
+      # if file along path is not a directory
+      # return None
+      if i < (len(pathList) - 1) and not current.isDir:
+        print(f"{'ERROR' if caller == '' else caller}: Cannot resolve path '{path}': '{current.name}' is not a directory")
+        return None
+
+      # begin checking next element
+      next = current.getFile(name)
+
+      # Return None if file along path isn't found
+      if next is None:
+        print(f"{'ERROR' if caller == '' else caller}: Cannot resolve path '{path}': '{name}' not found")
+        return None
+
+      current = next
+
+    return current
+
+  def ls(self, path: str, recursive:bool = False, all:bool=False):
+    f: File | None = self.resolvePath(path.split("/"), caller='ls')
+    if f is None: return
+    f.ls(path, recursive=recursive, all=all, root=self.root)
+
+  def cd(self, path:str):
+    f: File | None = self.resolvePath(path)
+    if f is None: return
+    if not f.isDir:
+      print(f"cd: {path} is a file, not a directory")
+      return
+    self.cwd = f
+
+  def mkfile(self, path: str, isDir: bool=False):
+    # Creates a file in the specified path.
+    pathList = path.split("/")
+    tgt: File = self.resolvePath(pathList[:-1], caller='mkdir')
+    if tgt is None: return False
+    return tgt.createFile(pathList[-1], isDir) is not None
+  
+  def mkdir(self, path: str) -> bool:
+    return self.mkfile(path, True)
+  
+  def rm(self, path: str, recursive:bool=False) -> bool:
+    tgt: File | None = self.resolvePath(path)
+    if tgt is None: return False
+    if tgt.isDir:
+      if not recursive:
+        print(f"rm: cannot remove '{path}': Is a directory")
+        return False
+      else:
+        return tgt.parent.removeFile(tgt.name, True) is not None
+    else:
+      return tgt.parent.removeFile(tgt.name) is not None
+
+  def mv(self, from_path: str, to_path: str, remove_source: bool=True) -> bool:
+    # obtain file to move fromTarget
+    # and its parent fromTargetParent
+    fromTargetPathlist = from_path.split("/")
+    fromTarget = self.resolvePath(fromTargetPathlist, caller='mv')
+    fromTargetParent = fromTarget.parent
+    if fromTarget is None:
+      return False
+    
+    # obtain toTargetParent
+    toTargetPathlist = to_path.split("/")
+    toTargetParent:File | None = self.resolvePath(toTargetPathlist[:-1], caller='mv')
+    if toTargetParent is None:
+      return False
+    
+    # prepare rename or destination file in which to move fromTarget
+    toTargetName = toTargetPathlist[-1]
+    toTarget = toTargetParent.getFile(toTargetName)
+
+    # case 1: destination exists, move in there
+    if toTarget is not None:
+      if toTarget.addFile(fromTarget if remove_source else deepcopy(fromTarget)):
+        if remove_source: return fromTargetParent.removeFile(fromTarget.name, True) is not None
+        else: return True
+    
+    # case 2: destination DNE, rename file
+    else:
+      
+      # same parent, just rename
+      if fromTargetParent == toTargetParent:
+        if remove_source: return toTargetParent.renameFile(fromTarget.name, toTargetName)
+        else: return toTargetParent.addFile(deepcopy(fromTarget))
+      
+      # different parent, move and rename
+      elif toTargetParent.addFile(fromTarget if remove_source else deepcopy(fromTarget)):
+        if remove_source: fromTargetParent.removeFile(fromTarget.name, True)
+        return toTargetParent.renameFile(fromTarget.name, toTargetName)
+      else:
+        return False
+      
+  def cp(self, from_path: str, to_path: str) -> bool:
+    return self.mv(from_path, to_path, remove_source=False)
+
+  def rename(self, path: str, new_name: str) -> bool:
+    tgt: File | None = self.resolvePath(path.split("/"), caller='rename')
+    if tgt is None: return False
+    tgt.rename(new_name)
+    return True
 
 def processExport(filetree:File) -> dict | str:
   if not filetree.isDir:
