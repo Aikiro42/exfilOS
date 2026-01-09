@@ -1,6 +1,6 @@
 
 from core.file import *
-from core.colors import color, bcolors
+from core.colors import *
 from core.host import Host
 from random import randint
 from prompt_toolkit import prompt
@@ -16,13 +16,17 @@ class Command:
     self.wflags = wflags
 
 class Mollusk:
-  def __init__(self, user:str, host:Host) -> None:
+  def __init__(self, user:str, host:Host, cache:list[File]=[], cacheCap:int=16) -> None:
     self.user = user
     self.home = host
     self.changeHost(host)
     self.running = False
     self.timers = {}
     self.logs = []
+    
+    # Player data passed into the shell
+    self.cache: list[File] = cache
+    self.cacheCap = cacheCap
 
   def start(self):
     self.running = True
@@ -138,7 +142,7 @@ class Mollusk:
         print("ERROR: File not specified")
     
     # save progress
-    elif cmd.exec == "save":
+    elif cmd.exec == "backup":
       if Mollusk.loadbar(failChance=0.05):
         exportFiles(self.home.rootdir)
         print(color("Saved successfully!", bcolors.OK))
@@ -163,10 +167,17 @@ class Mollusk:
               self.startTimer(cmd.args[0], duration)
             except: print("ERROR: Invalid Duration")
 
-    # blank
-    elif cmd.exec == "":
-      pass
+    # view cache
+    elif cmd.exec in ("backpack", "cache"):
+      self.showCache()
 
+    # download file to cache
+    elif cmd.exec in ("dl", "download", "wget", "curl"):
+      self.download(cmd)
+
+    # blank
+    elif cmd.exec == "": pass
+    
     # unknown
     else:
       print(f"ERROR: No command found with name \"{cmd.exec}\"")
@@ -189,6 +200,45 @@ class Mollusk:
     if time_left <= 0:
       del self.timers[name]
     print(f"{name}: {time_left} s")
+
+  def download(self, cmd: Command):
+    if len(cmd.args) <= 0:
+      print("ERROR: File not specified")
+      return
+    
+    if cmd.args[0] not in self.cwd.data.keys():
+      print(f"ERROR: File {cmd.args[0]} not found")
+      return
+    if len(self.cache) >= self.cacheCap:
+      print(f"ERROR: Cache full! Buy more RAM to increase it.")
+      return
+
+    obtained: File = self.cwd.getFile(cmd.args[0])
+    
+    if obtained.isDir:
+      print("ERROR: File is directory; can only download files to Cache")
+      return
+
+    obtained.parent = None
+    self.cache.append(self.cwd.getFile(cmd.args[0]))
+    self.cwd.rm(cmd.args[0])
+
+  def showCache(self):
+    cached = len(self.cache)
+    print(color(f"Cache ({cached}/{self.cacheCap}): ", bcolors.INFO))
+    if cached > 0:
+      for i in range(cached):
+        file = self.cache[i]
+        print(f"[{i}]  {file.name}")
+
+    else:
+      print()
+      print("Cache is empty.")
+      print("To store files to cache, do")
+      print()
+      print("  download path/to/file.ext")
+      print()
+
 
   @staticmethod
   def loadbar(duration=1, barlength=30, failChance:float=0):
