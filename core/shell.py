@@ -16,7 +16,7 @@ class Command:
     self.wflags = wflags
 
 class Mollusk:
-  def __init__(self, user:str, host:Host, cache:list[File]=[], cacheCap:int=16) -> None:
+  def __init__(self, user:str, host:Host, cache:list[File]|None=None, cacheCap:int=16) -> None:
     self.user = user
     self.home = host
     self.changeHost(host)
@@ -25,7 +25,7 @@ class Mollusk:
     self.logs = []
     
     # Player data passed into the shell
-    self.cache: list[File] = cache
+    self.cache: list[File] = [] if cache is None else cache
     self.cacheCap = cacheCap
 
   def start(self):
@@ -55,29 +55,6 @@ class Mollusk:
       self.run(Mollusk.parse(cmdstr))
     except EOFError:
       self.stop()
-
-  @staticmethod
-  def parse(cmd: str) -> Command:
-    # Static function that parses a string into a command
-    split = cmd.split(" ")
-    args = []
-    exe = ""
-    lflags = ""
-    wflags = []
-    for arg in split:
-      if len(arg) <= 0: continue
-      if arg[:2] == "--":
-        wflags += [arg[2:]]
-      elif arg[0] == "-":
-        for lflag in arg[1:]:
-          if lflag in lflags: continue
-          lflags += lflag
-      elif exe == "":
-        exe = arg
-      else:
-        args += [arg]
-      
-    return Command(exe, args, lflags, wflags)
   
   def run(self, cmd: Command):
     # manual/help
@@ -95,12 +72,7 @@ class Mollusk:
       
     # list directories
     elif cmd.exec in ("l", "ls"):
-      recursive = "r" in cmd.lflags or "recursive" in cmd.wflags
-      all = "a" in cmd.lflags or "all" in cmd.wflags
-      if len(cmd.args) > 0:
-        self.cwd.ls(recursive=recursive, all=all, path=cmd.args[0])
-      else:
-        self.cwd.ls(recursive=recursive, all=all)
+      self.ls(cmd)
 
     # change directory
     elif cmd.exec == "cd":
@@ -182,6 +154,32 @@ class Mollusk:
     else:
       print(f"ERROR: No command found with name \"{cmd.exec}\"")
 
+  # SECTION: TRAD BUILT-IN SHELL COMMANDS
+  
+  def ls(self, cmd: Command):
+    if not self.cwd.isDir:
+      print(f"IMPOSSIBLE: Current working directory is a file")
+      return
+    
+    tgt = self.cwd
+    if len(cmd.args) > 0:
+      path = cmd.args[0]
+      tgt = self.cwd.followPath(path)
+      if tgt is None:
+        print(f"ERROR: Path {path} does not exist")
+        return
+      if not tgt.isDir:
+        print(f"ERROR: Path {path} is not a directory")
+        return
+      
+    all = 'a' in cmd.lflags or 'all' in cmd.wflags
+    for filename, file in tgt.data.items(): # type: ignore
+      if filename[0] == '.' and not all: continue  # skip hidden files
+      print(f"{color(file.name, bcolors.DIR) if file.isDir else file.name}")
+
+  # SECTION: PROGRAMS
+
+  # timer <timer name (optional)> <timer duration in seconds>
   def startTimer(self, name:str, duration: int):
     timerTime = self.timers.get(name, -1)
     if timerTime <= 0:
@@ -195,12 +193,14 @@ class Mollusk:
     else:
       print(f"ERROR: Timer {name} already running ({timerTime}s left)")
 
+  # timer <running timer name>
   def checkTimer(self, name:str):
     time_left = self.timers.get(name, -1)
     if time_left <= 0:
       del self.timers[name]
     print(f"{name}: {time_left} s")
 
+  # dl, download, wget, curl
   def download(self, cmd: Command):
     if len(cmd.args) <= 0:
       print("ERROR: File not specified")
@@ -223,6 +223,7 @@ class Mollusk:
     self.cache.append(self.cwd.getFile(cmd.args[0]))
     self.cwd.rm(cmd.args[0])
 
+  # cache, backpack
   def showCache(self):
     cached = len(self.cache)
     print(color(f"Cache ({cached}/{self.cacheCap}): ", bcolors.INFO))
@@ -238,7 +239,6 @@ class Mollusk:
       print()
       print("  download path/to/file.ext")
       print()
-
 
   @staticmethod
   def loadbar(duration=1, barlength=30, failChance:float=0):
@@ -257,3 +257,26 @@ class Mollusk:
       print(color(f"\r[{'|' * barlength}]", bcolors.OK if maxProgress == 100 else bcolors.ERROR), end="")
     print()
     return maxProgress == 100
+
+  @staticmethod
+  def parse(cmd: str) -> Command:
+    # Static function that parses a string into a command
+    split = cmd.split(" ")
+    args = []
+    exe = ""
+    lflags = ""
+    wflags = []
+    for arg in split:
+      if len(arg) <= 0: continue
+      if arg[:2] == "--":
+        wflags += [arg[2:]]
+      elif arg[0] == "-":
+        for lflag in arg[1:]:
+          if lflag in lflags: continue
+          lflags += lflag
+      elif exe == "":
+        exe = arg
+      else:
+        args += [arg]
+      
+    return Command(exe, args, lflags, wflags)
