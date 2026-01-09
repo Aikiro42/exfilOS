@@ -2,6 +2,7 @@ import json
 from typing import Dict
 from .const import *
 from .colors import color
+from copy import deepcopy
 
 class FileSystem:
   def __init__(self, root:File|None=None):
@@ -90,32 +91,73 @@ class FileSystem:
       return
     self.cwd = f
 
-  def mkdir(self, path: str):
+  def mkfile(self, path: str, isDir: bool=False):
+    # Creates a file in the specified path.
     pathList = path.split("/")
     tgt: File = self.resolvePath(pathList[:-1], caller='mkdir')
-    made: File = File(pathList[-1], True, parent=tgt)
-
-  def mkfile(self, path: str):
-    self.resolvePath(path, create=True)
+    if tgt is None: return False
+    return tgt.createFile(pathList[-1], isDir) is not None
   
-  def rm(self, path: str, recursive:bool=False):
+  def mkdir(self, path: str) -> bool:
+    return self.mkfile(path, True)
+  
+  def rm(self, path: str, recursive:bool=False) -> bool:
     tgt: File | None = self.resolvePath(path)
-    if tgt is None: return
+    if tgt is None: return False
     if tgt.isDir:
       if not recursive:
         print(f"rm: cannot remove '{path}': Is a directory")
-        return
+        return False
       else:
-        tgt.parent.rmdir(tgt.name, True)
+        return tgt.parent.removeFile(tgt.name, True) is not None
     else:
-      tgt.parent.rm(tgt.name)
+      return tgt.parent.removeFile(tgt.name) is not None
 
-  def move(self, from_path: str, to_path: str):
-    from_tgt = self.resolvePath(from_path)
-    if from_tgt is None:
-      print(f"mv: No such directory '{from_path}'")
-      return
+  def mv(self, from_path: str, to_path: str, remove_source: bool=True) -> bool:
+    # obtain file to move fromTarget
+    # and its parent fromTargetParent
+    fromTargetPathlist = from_path.split("/")
+    fromTarget = self.resolvePath(fromTargetPathlist, caller='mv')
+    fromTargetParent = fromTarget.parent
+    if fromTarget is None:
+      return False
+    
+    # obtain toTargetParent
+    toTargetPathlist = to_path.split("/")
+    toTargetParent:File | None = self.resolvePath(toTargetPathlist[:-1], caller='mv')
+    if toTargetParent is None:
+      return False
+    
+    # prepare rename or destination file in which to move fromTarget
+    toTargetName = toTargetPathlist[-1]
+    toTarget = toTargetParent.getFile(toTargetName)
 
+    # case 1: destination exists, move in there
+    if toTarget is not None:
+      if toTarget.addFile(fromTarget if remove_source else deepcopy(fromTarget)):
+        if remove_source: return fromTargetParent.removeFile(fromTarget.name, True) is not None
+        else: return True
+    
+    # case 2: destination DNE, rename file
+    else:
+      
+      # same parent, just rename
+      if fromTargetParent == toTargetParent:
+        if remove_source: return toTargetParent.renameFile(fromTarget.name, toTargetName)
+        else: return toTargetParent.addFile(deepcopy(fromTarget))
+      
+      # different parent, move and rename
+      elif toTargetParent.addFile(fromTarget if remove_source else deepcopy(fromTarget)):
+        if remove_source: fromTargetParent.removeFile(fromTarget.name, True)
+        return toTargetParent.renameFile(fromTarget.name, toTargetName)
+      else:
+        return False
+      
+  def cp(self, from_path: str, to_path: str) -> bool:
+    return self.mv(from_path, to_path, remove_source=False)
+
+  def rename(self, old_name, new_name) -> bool:
+    ...
 
 
 class File:
@@ -146,7 +188,7 @@ class File:
     # Returns None if the file on which this function is called
     # is not a directory.
     if not self.isDir: return None
-    made = self.data.get(name, None)
+    made = self.getFile(name)
     if made is None:
       made = File(name, isDir, parent=self)
       self.data[name] = made
@@ -157,11 +199,27 @@ class File:
     # this function is called from.
     # Returns true on success, false on failure.
     if not self.isDir: return False
-    if self.data.get(file.name) and not replace:
+    if self.getFile(file.name) and not replace:
       print(f"{'ERROR' if caller == '' else caller}: cannot add file '{file.name}': '{self.path}' already exists")
       return False
     self.data[file.name] = file
+    file.parent = self
     return True
+  
+  def getFile(self, name: str, pop:bool = False) -> File | None:
+    # dir operation
+    # returns file with filename `name` within itself
+    # returns None if file is nonexistent
+    if not self.isDir:
+      print(f"ERROR: Cannot retrieve file from {self.name}, is file")
+      return None
+    if name not in self.data.keys():  # FIXME: change to dict.get()?
+      print(f"ERROR: {name} does not exist")
+      return None
+    if pop:
+      return self.data.pop(name)
+    else:
+      return self.data[name]
   
   def readFile(self, name:str) -> str | None:
     # Returns the contents of the specified file.
@@ -169,18 +227,18 @@ class File:
     # is not a directory, this function returns
     # the file's contents instead.
     if not self.isDir: return self.data
-    tgt = self.data.get(name, None)
+    tgt = self.getFile(name)
     if tgt is None: return None
     if tgt.isDir: return None
     return tgt.data
-  
+    
   def removeFile(self, name:str, recursive:bool=False) -> File | None:
     # Removes a file with the associated name from its File dictionary
     # Returns the removed file if success, None otherwise.
     if not self.isDir: return None
     
     # Attempt to retrieve the file to delete
-    tgt = self.data.get(name, None)
+    tgt = self.getFile(name)
     if tgt is None: return None
 
     # Validate file; Refuse to delete if key-name mismatch
@@ -189,15 +247,22 @@ class File:
       return None
 
     # Check if file is a directory
-    # If it is, and recursive is true,
-    #   remove all the files within
     # Otherwise, report failure to delete
     if tgt.isDir and not recursive:
-      print(f"rm: cannot remove '{name}': is directory with contents")
+      print(f"rm: cannot remove '{tgt.name}': is directory with contents")
       return None
     
     # Finally, remove the target
-    self.data.pop(name)
+    tgt.parent = None
+    self.data.pop(tgt.name)
+    return tgt
+  
+  def renameFile(self, old_name:str, new_name: str) -> bool:
+    tgt = self.getFile(old_name, None)
+    if tgt is None: return False
+    if self.getFile(new_name, None) is not None: return False
+    tgt.name = new_name
+    self.data[new_name] = self.data.pop(old_name)
     return True
 
   def edit(self, path:str):
@@ -260,18 +325,6 @@ class File:
       print(f"ERROR: cannot make file within {self.name}, is file")
       return
     self.data[name] = File(name, isDir, parent=self, root=self.root) # type: ignore
-  
-  # dir operation
-  # returns file with filename `name` within itself
-  # returns None if file is nonexistent
-  def getFile(self, name: str) -> File | None:
-    if not self.isDir:
-      print(f"ERROR: Cannot retrieve file from {self.name}, is file")
-      return None
-    if name not in self.data.keys():
-      print(f"ERROR: {name} does not exist")
-      return None
-    return self.data[name]
   
   def read(self, path:str, root:File=None):
     if not self.isDir:
