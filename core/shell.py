@@ -63,12 +63,13 @@ class Mollusk:
 
     # logout
     elif cmd.exec in ('quit', 'exit', 'logout'):
+      print(color("Logging out...", bcolors.INFO))
       Mollusk.loadbar()
       self.stop()
 
     # clear
     elif cmd.exec in ("clear", "cls"):
-      os.system("cls" if os.name == "nt" else "clear")
+      self.clear()
       
     # list directories
     elif cmd.exec in ("l", "ls"):
@@ -114,12 +115,17 @@ class Mollusk:
         print("ERROR: File not specified")
     
     # save progress
-    elif cmd.exec == "backup":
+    elif cmd.exec in ("backup", "save", "savegame"):
       if Mollusk.loadbar(failChance=0.05):
         exportFiles(self.home.rootdir)
         print(color("Saved successfully!", bcolors.OK))
       else:
         print(color("Save Failed!", bcolors.ERROR))
+    
+    elif cmd.exec in ("restart", "reload", "loadgame"):
+      print(color("RESTARTING GAME...", bcolors.WARNING))
+      Mollusk.loadbar()
+      self.clear()
 
     # timer
     elif cmd.exec == "timer":
@@ -155,6 +161,8 @@ class Mollusk:
       print(f"ERROR: No command found with name \"{cmd.exec}\"")
 
   # SECTION: TRAD BUILT-IN SHELL COMMANDS
+  def clear(self):
+    os.system("cls" if os.name == "nt" else "clear")
   
   def ls(self, cmd: Command):
     if not self.cwd.isDir:

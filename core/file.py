@@ -3,6 +3,118 @@ from typing import Dict
 from .const import *
 from .colors import color
 
+class FileSystem:
+  def __init__(self):
+    self.root = File("~", is_dir=True)
+    self.cwd = self.root
+
+  @property
+  def currentPath(self):
+    path = self.cwd.name
+    current: File = self.cwd
+    while current.parent is not None:
+      path = f"{current.parent.name}/{path}"
+      current = current.parent
+    return path
+
+  def resolvePath(self, pathList: list[str], fromFile:File|None=None, caller:str='') -> File | None:
+    # Parameters:
+    #   pathList = ordered list of filenames through which to traverse
+    # Returns the final file in the path.
+    # (remember that dirs are files too)
+    # If the path to the file does not exist, returns None.
+
+    current: File | None = self.cwd if fromFile is None else fromFile
+
+    # if first filename in the path is the root
+    # start from root
+    if pathList[0]  == self.root.name:
+      current = self.root
+      pathList = pathList[1:]
+
+    # handle impossible situations
+    if current is None:
+      print(f"PANIC: Cannot resolve path '{path}': null start")
+    if not current.isDir:
+      print(f"PANIC: Cannot resolve path '{path}': Path start '{current.name}' is not a directory")
+
+    for i in range(len(pathList)):
+
+      name = pathList[i]
+      
+      # empty, don't process
+      if name == "": continue
+      
+      # pathing to current file, continue
+      if name == ".":
+        continue
+      
+      # path to parent
+      # if parent is None, assume file is a root
+      if name == "..":  
+        if current.parent is not None:
+          current = current.parent
+        continue
+      
+      # if file along path is not a directory
+      # return None
+      if i < (len(pathList) - 1) and not current.isDir:
+        print(f"{'ERROR' if caller == '' else caller}: Cannot resolve path '{path}': '{current.name}' is not a directory")
+        return None
+
+      # begin checking next element
+      next = current.getFile(name)
+
+      # Return None if file along path isn't found
+      if next is None:
+        print(f"{'ERROR' if caller == '' else caller}: Cannot resolve path '{path}': '{name}' not found")
+        return None
+
+      current = next
+
+    return current
+
+  def ls(self, path: str, recursive:bool = False, all:bool=False):
+    f: File | None = self.resolvePath(path.split("/"), caller='ls')
+    if f is None: return
+    f.ls(path, recursive=recursive, all=all, root=self.root)
+
+  def cd(self, path:str):
+    f: File | None = self.resolvePath(path)
+    if f is None: return
+    if not f.isDir:
+      print(f"cd: {path} is a file, not a directory")
+      return
+    self.cwd = f
+
+  def mkdir(self, path: str):
+    pathList = path.split("/")
+    tgt: File = self.resolvePath(pathList[:-1], caller='mkdir')
+    made: File = File(pathList[-1], True, parent=tgt)
+
+  def mkfile(self, path: str):
+    self.resolvePath(path, create=True)
+  
+  def rm(self, path: str, recursive:bool=False):
+    tgt: File | None = self.resolvePath(path)
+    if tgt is None: return
+    if tgt.isDir:
+      if not recursive:
+        print(f"rm: cannot remove '{path}': Is a directory")
+        return
+      else:
+        tgt.parent.rmdir(tgt.name, True)
+    else:
+      tgt.parent.rm(tgt.name)
+
+  def move(self, from_path: str, to_path: str):
+    from_tgt = self.resolvePath(from_path)
+    if from_tgt is None:
+      print(f"mv: No such directory '{from_path}'")
+      return
+
+
+
 class File:
   def __init__(self, name:str, isDir:bool, data:str|Dict[str, File]="", parent:File|None=None, root:File|None=None):
     self.isDir = isDir
@@ -10,7 +122,80 @@ class File:
     self.parent = parent
     if root is None:
       self.root = self
-    self.data = {".": self, "..": parent} if isDir else data
+    self.data = {} if isDir else data
+  
+  @property
+  def path(self):
+    if self.parent is None: return self.name
+    return f"{self.parent.path}/{self.name}"
+
+  def validateFiles(self):
+    # Makes sure that all the keys in the directory's data
+    # correspond with the name of the file they refer to.
+    if not self.isDir: return
+    for filename, file in self.data.items():
+      if file.name != filename:
+        self.data[file.name] = self.data.pop(filename)
+  
+  def createFile(self, name:str, isDir:bool) -> File | None:
+    # Creates a file within the directory and returns it.
+    # Returns the file if it already exists.
+    # Returns None if the file on which this function is called
+    # is not a directory.
+    if not self.isDir: return None
+    made = self.data.get(name, None)
+    if made is None:
+      made = File(name, isDir, parent=self)
+      self.data[name] = made
+    return made
+  
+  def addFile(self, file:File, replace:bool=False, caller:str='') -> bool:
+    # Adds a file into the data of the file
+    # this function is called from.
+    # Returns true on success, false on failure.
+    if not self.isDir: return False
+    if self.data.get(file.name) and not replace:
+      print(f"{'ERROR' if caller == '' else caller}: cannot add file '{file.name}': '{self.path}' already exists")
+      return False
+    self.data[file.name] = file
+    return True
+  
+  def readFile(self, name:str) -> str | None:
+    # Returns the contents of the specified file.
+    # If the file on which this function is called
+    # is not a directory, this function returns
+    # the file's contents instead.
+    if not self.isDir: return self.data
+    tgt = self.data.get(name, None)
+    if tgt is None: return None
+    if tgt.isDir: return None
+    return tgt.data
+  
+  def removeFile(self, name:str, recursive:bool=False) -> File | None:
+    # Removes a file with the associated name from its File dictionary
+    # Returns the removed file if success, None otherwise.
+    if not self.isDir: return None
+    
+    # Attempt to retrieve the file to delete
+    tgt = self.data.get(name, None)
+    if tgt is None: return None
+
+    # Validate file; Refuse to delete if key-name mismatch
+    if tgt.name != name:
+      print("PANIC: file key-name mismatch")
+      return None
+
+    # Check if file is a directory
+    # If it is, and recursive is true,
+    #   remove all the files within
+    # Otherwise, report failure to delete
+    if tgt.isDir and not recursive:
+      print(f"rm: cannot remove '{name}': is directory with contents")
+      return None
+    
+    # Finally, remove the target
+    self.data.pop(name)
+    return True
 
   def edit(self, path:str):
     if not self.isDir:
@@ -48,7 +233,7 @@ class File:
     
   # dir operation
   # lists all files within
-  def ls(self, recursive:bool=False, all:bool=False, path:str="", root:File=None, level:int=0):
+  def ls(self, path:str="", recursive:bool=False, all:bool=False, level:int=0):
     if not self.isDir:
       print(f"ERROR: Cannot ls inside {self.name}")
       return
@@ -89,13 +274,13 @@ class File:
     if not self.isDir:
       print(f"ERROR: Cannot retrieve file from {self.name}, is file")
       return
-    tgt:File = self.followPath(path)
+    tgt:File | None = self.followPath(path)
+    if tgt is None: return
     if tgt.isDir:
       print(f"ERROR: Cannot read {self.name}, is dir")
       return
     print(tgt.data)
     
-
   # dir operation
   # Follows path starting from self
   # Returns the final file in the path
