@@ -1,1 +1,0 @@
-[{"name": "~", "isDir": true, "parent": -1, "data": null}, {"name": "academics", "isDir": true, "parent": 0, "data": null}, {"name": "readme.md", "isDir": false, "parent": 0, "data": ""}, {"name": "hello.txt", "isDir": false, "parent": 0, "data": ""}, {"name": "cs140", "isDir": true, "parent": 1, "data": null}, {"name": "foo.txt", "isDir": false, "parent": 1, "data": ""}]

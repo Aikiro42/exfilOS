@@ -127,7 +127,7 @@ class File:
       if filename[0] == '.' and not all: continue  # skip hidden files
       print(f"{'  '*level}{color(file.name, bcolors.DIR) if file.isDir else file.name}")
 
-  def toJson(self, jsonPath: str="filesys2.json") -> list:
+  def toJson(self, jsonPath: str="filesys.json") -> list:
     # dfs algorithm
     fileQueue = [(self, -1)]
     files = []

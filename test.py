@@ -1,1 +1,0 @@
-print(type({"a": "b"}) is not str)
