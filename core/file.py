@@ -127,9 +127,52 @@ class File:
       if filename[0] == '.' and not all: continue  # skip hidden files
       print(f"{'  '*level}{color(file.name, bcolors.DIR) if file.isDir else file.name}")
 
+  def toJson(self, jsonPath: str="filesys2.json") -> list:
+    # dfs algorithm
+    fileQueue = [(self, -1)]
+    files = []
+    while len(fileQueue) > 0:
+      f = fileQueue.pop(0)
+      files.append({
+        # "index": len(files),
+        "name": f[0].name,
+        "isDir": f[0].isDir,
+        "parent": f[1],
+        "data": None if f[0].isDir else f[0].data
+      })
+      if f[0].isDir:
+        for child in f[0].data.values():
+          fileQueue.append((child, len(files) - 1))
     
-  def JSON(self):
-    pass  # TODO: JSONify
+    with open(jsonPath, "w") as jsonFile:
+      jsonFile.write(json.dumps(files))
+
+    return files
+
+  @staticmethod
+  def fromJson(jsonPath: str) -> File:
+      files: list[File] = []
+      with open(jsonPath) as jsonObj:
+        fileDefs = json.loads(jsonObj.read())
+        for fileDef in fileDefs:
+          isDir = fileDef["isDir"]
+          newFile = File(fileDef["name"], isDir, fileDef.get("data", {} if isDir else ""))
+          files.append(newFile)
+          parentIndex: int = fileDef["parent"]
+          if fileDef["parent"] > -1:
+            files[parentIndex].addFile(newFile)
+      return files[0]
+
+
+
+  @staticmethod
+  def fromDict(rootDict: dict, rootName: str) -> File:
+    rootFile = File(rootName, True)
+    for fileName, fileData in rootDict:
+      newFile = File(fileName, type(fileData) is not str)
+      rootFile.addFile(newFile, caller='fromDict')
+    return rootFile
+
 
 
 class FileSystem:
@@ -214,14 +257,14 @@ class FileSystem:
     f.listFiles(path)
 
   def cd(self, path:str):
-    f: File | None = self.resolvePath(path)
+    f: File | None = self.resolvePath(path.split("/"))
     if f is None: return
     if not f.isDir:
       print(f"cd: {path} is a file, not a directory")
       return
     self.cwd = f
 
-  def mkfile(self, path: str, isDir: bool=False):
+  def mkfile(self, path: str, isDir: bool=False) -> bool:
     # Creates a file in the specified path.
     pathList = path.split("/")
     tgt: File = self.resolvePath(pathList[:-1], caller='mkdir')
@@ -291,44 +334,4 @@ class FileSystem:
     if tgt is None: return False
     tgt.rename(new_name)
     return True
-
-def processExport(filetree:File) -> dict | str:
-  if not filetree.isDir:
-    return filetree.data
   
-  root = {}
-  for filename, file in filetree.data.items():
-    if filename == "." or filename == "..": continue
-    root[filename]  = processExport(file)
-
-  return root
-
-def processImport(obj: dict, name:str=ROOT_NAME, level=0) -> File:
-  root = File(name, True)
-  for filename, filedata in obj.items():
-    # print(f"{"  "*(level)}{filename}: ({type(filedata)}) {filedata}")
-    if type(filedata) == str:
-      root.createFile(filename, False)
-      newfile: File | None = root.getFile(filename)
-      if newfile is not None:
-        newfile.data = filedata
-    else:
-      root.createFile(filename, True)
-      newdir: File | None = root.getFile(filename)
-      if newdir is not None:
-        newdir.addFile(processImport(filedata, name=filename, level=level+1))
-  
-  return root
-
-def exportFiles(filetree:File, exportFile="filesys.json"):
-  with open(exportFile, "w") as f:
-    f.write(json.dumps(processExport(filetree)))
-
-def importFiles(importFile:str="filesys.json") -> File:
-  with open(importFile) as f:
-    return processImport(json.loads(f.read()))
-
-try:
-  ROOT = importFiles()
-except:
-  ROOT = File(ROOT_NAME, True)

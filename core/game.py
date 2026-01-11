@@ -1,6 +1,6 @@
 from core.shell import Mollusk
-from core.host import Host, LOCALHOST
-from core.file import importFiles, File, ROOT_NAME
+from core.host import Host
+from core.file import File, ROOT_NAME
 
 class Player:
   def __init__(self, name="player"):
@@ -10,7 +10,7 @@ class Player:
     self.health = 100
     self.maxHealth = 100
     try:
-      self.home = Host("localhost", importFiles())
+      self.home = Host("localhost", File.fromJson("filesys2.json"))
     except:
       self.home = Host("localhost", File(ROOT_NAME, True))
     self.shell = Mollusk(self.name, self.home)
