@@ -25,7 +25,7 @@ class Command:
     return self.cmdstr
 
 class Mollusk:
-  def __init__(self, user:str, host:Host, cache:list[File]|None=None, cacheCap:int=16) -> None:
+  def __init__(self, user:str, host:Host, cache:Dict[str, File]|None=None, cacheCap:int=2**14) -> None:
     self.user = user
     self.isHome = True
     self.home = host
@@ -39,7 +39,7 @@ class Mollusk:
     self.reloading = False
     
     # Player data passed into the shell
-    self.cache: list[File] = [] if cache is None else cache
+    self.cache: Dict[str, File] = {} if cache is None else cache
     self.cacheCap = cacheCap
 
   @property
@@ -154,11 +154,14 @@ class Mollusk:
       return
     self.host.fs.mkdir(cmd.args[0])
 
-  def mkfile(self, cmd: Command):
+  def mkfile(self, cmd: Command) -> File:
     if len(cmd.args) <= 0:
       print("ERROR: No filename specified")
       return
-    self.host.fs.mkfile(cmd.args[0])
+    f = self.host.fs.mkfile(cmd.args[0])
+    if f is None:
+      print(f"ERROR: Failed to make file '{cmd.args[0]}'")
+    return f
 
   def read(self, cmd: Command):
 
@@ -205,20 +208,32 @@ class Mollusk:
       print("ERROR: No file specified")
       return
     self.host.fs.rename(cmd.args[0], cmd.args[1])
+  
+  def size(self, cmd: Command):
+    if len(cmd.args) <= 0:
+      print("ERROR: No file specified")
+      return
+    f: File | None = self.host.fs.get(cmd.args[0])
+    if f is None:
+      print(f"ERROR: Cannot find file/directory '{cmd.args[0]}'")
+      return
+    print(f"{f.size} Bytes")
 
   def viewCache(self, cmd: Command):
-    ncache = len(self.cache)
+    ncache = sum(x.size for x in self.cache.values())
     if ncache <= 0:
-      print(color(f"No items in cache ({self.cacheCap} max capacity).", bcolors.INFO))
+      print(color(f"No items in cache (0/{self.cacheCap} B).", bcolors.INFO))
       return
-    print(color(f"Cache (Capacity: {ncache}/{self.cacheCap}):", bcolors.INFO))
-    for cachedFile in self.cache:
-      print(f"- {cachedFile.name}")
+    print(color(f"Cache (Capacity: {ncache:}/{self.cacheCap} B):", bcolors.INFO))
+    for cachedFile in sorted(self.cache.values(), key=lambda x: x.size, reverse=True):
+      print(f"- {cachedFile.name} ({cachedFile.size})")
 
   def ed(self, cmd: Command):
     if len(cmd.args) <= 0:
       print("ERROR: File not specified.")
     f: File | None = self.host.fs.get(cmd.args[0], 'ed')
+    if f is None:
+      f = self.mkfile(cmd)
     if f is None: return
     edited = TextEditor.edit(f)
     Mollusk.loadbar(duration=clamp(len(edited)*0.001, 0.3, 1))
@@ -288,6 +303,25 @@ class Mollusk:
       
   # SECTION: PROGRAMS
 
+  def gen(self, cmd: Command):
+    if len(cmd.args) <= 0:
+      print("ERROR: Fail to specify generated file size.")
+      return
+    name = ''
+    if len(cmd.args) >= 2:
+      name = cmd.args[1]
+    size = 0
+    try:
+      size = int(cmd.args[0])
+    except:
+      print("ERROR: Invalid generated file size.")
+      return
+    f: File = File.generate(size, name)
+    Mollusk.loadbar(duration=size*0.01)
+    self.host.fs.cwd.addFile(f)
+    print(f"Generated file {f.name}!")
+
+
   # timer <timer name (optional)> <timer duration in seconds>
   def startTimer(self, name:str, duration: int):
     timerTime = self.timers.get(name, -1)
@@ -318,7 +352,8 @@ class Mollusk:
     if cmd.args[0] not in self.cwd.data.keys():
       print(f"ERROR: File {cmd.args[0]} not found")
       return
-    if len(self.cache) >= self.cacheCap:
+    currentCacheSize = sum(x.size for x in self.cache.values())
+    if currentCacheSize >= self.cacheCap:
       print(f"ERROR: Cache full! Buy more RAM to increase it.")
       return
 
@@ -328,28 +363,50 @@ class Mollusk:
       print("ERROR: File is directory; can only download files to Cache")
       return
 
+    if obtained.size + currentCacheSize >= self.cacheCap:
+      print("ERROR: Cache too full to accomodate file!")
+      return
+
     if self.host.fs.rm(cmd.args[0]):
-      self.cache.append(obtained)
+      self.cache[obtained.name] = obtained
 
-  # cache, backpack
-  def showCache(self):
-    cached = len(self.cache)
-    print(color(f"Cache ({cached}/{self.cacheCap}): ", bcolors.INFO))
-    if cached > 0:
-      for i in range(cached):
-        file = self.cache[i]
-        print(f"[{i}]  {file.name}")
+  def upload(self, cmd: Command):
+    if len(cmd.args) <= 0:
+      for filename, file in self.cache.items():
+        Mollusk.loadbar(duration=file.size*0.001, end=filename)
+        self.host.fs.cwd.addFile(self.cache.pop(filename))
+        print(color(f"\b{filename}", bcolors.OK))
+      return
+    
+    if len(cmd.args) == 1:
+      filename = cmd.args[0]
+      file = self.cache.get(filename, None)
+      if file is None:
+        print(f"ERROR: Cannot find '{filename}' in cache.")
+        return
+      Mollusk.loadbar(duration=file.size*0.001)
+      self.host.fs.cwd.addFile(self.cache.pop(filename))
+      print(color(f"Uploaded {filename} to '{self.host.fs.cwd.name}'.", bcolors.OK))
+    
+    if len(cmd.args) >= 2:
+      filename = cmd.args[0]
+      file = self.cache.get(filename, None)
+      if file is None:
+        print(f"ERROR: Cannot find '{filename}' in cache.")
+        return
+      dst = self.host.fs.get(cmd.args[1], caller='upload')
+      if dst is None: return
+      if not dst.isDir:
+        print(f"ERROR: Cannot upload to '{cmd.args[1]}': is a file")
+        return
+      Mollusk.loadbar(duration=file.size*0.001)
+      dst.addFile(self.cache.pop(filename))
+      print(color(f"Uploaded {filename} to '{dst.name}'.", bcolors.OK))
 
-    else:
-      print()
-      print("Cache is empty.")
-      print("To store files to cache, do")
-      print()
-      print("  download path/to/file.ext")
-      print()
+      
 
   @staticmethod
-  def loadbar(duration=1, barlength=30, failChance:float=0):
+  def loadbar(duration=1, barlength=30, failChance:float=0, end=""):
     progress = 0
     filllen = 0
     maxProgress = 100
@@ -357,12 +414,12 @@ class Mollusk:
         maxProgress = randint(0, 99)
     while progress < maxProgress:
       filllen = min(barlength, math.ceil(progress*barlength/100))
-      print(color(f"\r[{'|' * filllen}{' ' * (barlength-filllen)}]", bcolors.INFO), end="")
+      print(color(f"\r[{'|' * filllen}{' ' * (barlength-filllen)}]{end}", bcolors.INFO), end="")
       progadd = randint(1, 5)
       progress += progadd
       time.sleep(duration*progadd/100)
     else:
-      print(color(f"\r[{'|' * barlength}]", bcolors.OK if maxProgress == 100 else bcolors.ERROR), end="")
+      print(color(f"\r[{'|' * barlength}]{end}", bcolors.OK if maxProgress == 100 else bcolors.ERROR), end="")
     print()
     return maxProgress == 100
 

@@ -3,6 +3,7 @@ from typing import Dict
 from .const import *
 from .colors import color
 from copy import deepcopy
+import secrets, string
 
 class File:
   def __init__(self, name:str, isDir:bool, data:str|Dict[str, File]="", parent:File|None=None):
@@ -62,6 +63,14 @@ class File:
           print(f"  Detected hash mismatch: {file.name} != {filename}")
         self.data[file.name] = self.data.pop(filename)
     return not didError
+  
+  @staticmethod
+  def generate(size: int, name:str="") -> File:
+    alphabet = string.ascii_letters + string.digits
+    if name == "":
+      name = ''.join(secrets.choice(alphabet) for _ in range(size))
+    data:str = ''.join(secrets.choice(alphabet) for _ in range(size))
+    return File(name, False, data)
   
   def createFile(self, name:str, isDir:bool) -> File | None:
     # Creates a file within the directory and returns it.
@@ -314,12 +323,12 @@ class FileSystem:
       return
     self.cwd = f
 
-  def mkfile(self, path: str, isDir: bool=False) -> bool:
+  def mkfile(self, path: str, isDir: bool=False) -> File:
     # Creates a file in the specified path.
     pathList = path.split("/")
     tgt: File = self.resolvePath(pathList[:-1], caller='mkdir')
     if tgt is None: return False
-    return tgt.createFile(pathList[-1], isDir) is not None
+    return tgt.createFile(pathList[-1], isDir)
   
   def mkdir(self, path: str) -> bool:
     return self.mkfile(path, True)
