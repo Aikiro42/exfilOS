@@ -235,6 +235,9 @@ class Mollusk:
     if f is None:
       f = self.mkfile(cmd)
     if f is None: return
+    if f.isDir:
+      print(f"ERROR: Cannot edit '{cmd.args[0]}': exists as directory")
+      return
     edited = TextEditor.edit(f)
     Mollusk.loadbar(duration=clamp(len(edited)*0.001, 0.3, 1))
     f.edit(edited)
