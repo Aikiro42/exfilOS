@@ -8,7 +8,7 @@ import os
 
 def gameinit():
 
-  os.system("cls" if os.name == "nt" else "clear")
+  Mollusk.clear()
   p = Player("guest")
   return p
 
@@ -18,14 +18,27 @@ def gameinit():
   Mollusk.loadbar()
 
 def gameloop(p: Player):
-  os.system("cls" if os.name == "nt" else "clear")
+  Mollusk.clear()
   p.shell.start()
   while p.shell.running:
     p.shell.prompt()
+    if p.shell.reloading:
+      Mollusk.loadbar()
+      Mollusk.clear()
+      p.load()
+      p.shell.start()
   print(color("Logging out...", bcolors.INFO))
   p.shell.savegame(None, True)
-  os.system("cls" if os.name == "nt" else "clear")
+  Mollusk.clear()
 
 if __name__ == "__main__":
-  p = gameinit()
-  gameloop(p)
+  try:
+    p = gameinit()
+    gameloop(p)
+  except KeyboardInterrupt:
+    Mollusk.clear()
+    print(color("WARNING: exfilOS force-exited via Ctrl+C.", bcolors.WARNING))
+    if p.shell.savegame(None, forceExit=True):
+      print(color("Game saved successfully.", bcolors.OK))
+    else:
+      print(color("Game failed to save!", bcolors.ERROR))

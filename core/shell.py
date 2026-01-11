@@ -2,9 +2,12 @@
 from core.file import *
 from core.colors import *
 from core.host import Host
-from random import randint
-from prompt_toolkit import prompt
+
+from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import ANSI
+from prompt_toolkit.completion import WordCompleter
+
+from random import randint
 import math, os, time
 import threading
 
@@ -25,9 +28,13 @@ class Mollusk:
     self.isHome = True
     self.home = host
     self.changeHost(host)
-    self.running = False
     self.timers = {}
     self.logs = []
+
+    self.promptSession = PromptSession()
+
+    self.running = False
+    self.reloading = False
     
     # Player data passed into the shell
     self.cache: list[File] = [] if cache is None else cache
@@ -62,7 +69,8 @@ class Mollusk:
     if promptString != "":
       s = promptString
     try:
-      cmdstr = prompt(ANSI(s))
+      fileCompleter = WordCompleter(list(self.host.fs.cwd.data.keys()))
+      cmdstr = self.promptSession.prompt(ANSI(s), completer=fileCompleter)
       self.run(Mollusk.parse(cmdstr))
     except EOFError:
       self.stop()
@@ -74,7 +82,7 @@ class Mollusk:
       "quit": "logout",
       "exit": "logout",
 
-      "cls": "clear",
+      "clear": "cls",
       
       "l": "ls",
 
@@ -111,8 +119,12 @@ class Mollusk:
 
   # SECTION: TRAD BUILT-IN SHELL COMMANDS
 
-  def clear(self, cmd: Command):
+  @staticmethod
+  def clear():
     os.system("cls" if os.name == "nt" else "clear")
+  
+  def cls(cmd: Command | None):
+    Mollusk.clear()
   
   def ls(self, cmd: Command):
     if not self.cwd.isDir:
@@ -151,7 +163,7 @@ class Mollusk:
       print("ERROR: No filename specified")
       return
     
-    toRead: File = self.host.fs.resolvePath(cmd.args[0].split("/"), caller='read')
+    toRead: File = self.host.fs.get(cmd.args[0], caller='read')
     
     if toRead.isDir:
       print(f"ERROR: Cannot read {cmd.args[0]}: '{toRead.name}' is directory")
@@ -163,7 +175,7 @@ class Mollusk:
     if len(cmd.args) <= 0:
       print("ERROR: No path specified")
       return
-    self.host.fs.rm(cmd.args[0].split("/"), 'r' in cmd.lflags or 'recursive' in cmd.wflags)
+    self.host.fs.rm(cmd.args[0], 'r' in cmd.lflags or 'recursive' in cmd.wflags)
   
   def mv(self, cmd: Command, remove_source:bool=True):
     if len(cmd.args) <= 0:
@@ -186,6 +198,15 @@ class Mollusk:
       return
     self.host.fs.rename(cmd.args[0], cmd.args[1])
 
+  def viewCache(self, cmd: Command):
+    ncache = len(self.cache)
+    if ncache <= 0:
+      print(color(f"No items in cache ({self.cacheCap} max capacity).", bcolors.INFO))
+      return
+    print(color(f"Cache (Capacity: {ncache}/{self.cacheCap}):", bcolors.INFO))
+    for cachedFile in self.cache:
+      print(f"- {cachedFile.name}")
+
   def chkdsk(self, cmd: Command):
     isVerbose = 'v' in cmd.lflags or 'verbose' in cmd.wflags
     self.host.fs.cwd.validateFiles(verbose = isVerbose)
@@ -195,32 +216,56 @@ class Mollusk:
       print(f"ERROR: Cannot logout while not in host '{self.home.name}'")
     self.stop()
 
-  def savegame(self, cmd: Command, exiting:bool=False):
-    if exiting:
-      self.loadbar(0.5)
+  def savegame(self, cmd: Command, exiting:bool=False, forceExit:bool=False) -> bool:
+    
+    # Cannot save away from home
+    if not self.isHome:
+      print(color(f"ERROR: Cannot save filesystem: not at home '{self.home.name}'", bcolors.ERROR))
+      return False
+    
+    # Save game without loadboar on keyboard interrupt
+    if forceExit:
       self.host.fs.root.toJson()
-      return
-    if not self.loadbar(0.5, failChance=0.1):
+      return True
+    
+    # Loadbar on exit
+    if exiting:
+      Mollusk.loadbar(0.5)
+      self.host.fs.root.toJson()
+      return False
+    
+    # 10% chance to fail saving the system
+    if not Mollusk.loadbar(0.5, failChance=0.1):
       print(color("ERROR: Failed to save filesystem!", bcolors.ERROR))
-      return
-    files = self.host.fs.root.toJson()
-    if 's' in cmd.lflags:
-      return
+      return False
+    
+    files = self.host.fs.root.toJson()  # save success
+
+    # Silent means "don't print success message"
+    if 's' in cmd.lflags or 'silent' in cmd.wflags:
+      return True
+    
     print(color("Successfully saved filesystem!", bcolors.OK))
-    if 'v' not in cmd.lflags:
-      return
-    print("[")
-    for f in files:
-      # print(f"  {f['index']}: {'{'}")
-      print("  {")
-      print(f'    "name": "{f["name"]}"')
-      print(f'    "isDir": "{f["isDir"]}"')
-      print(f'    "parent": {f["parent"]}')
-      print("  }")
-    print("]")
+    
+    # Verbose prints the contents of the saved json file.
+    if 'v' in cmd.lflags or 'verbose' in cmd.wflags:
+      print("[")
+      for f in files:
+        # print(f"  {f['index']}: {'{'}")
+        print("  {")
+        print(f'    "name": "{f["name"]}"')
+        print(f'    "isDir": "{f["isDir"]}"')
+        print(f'    "parent": {f["parent"]}')
+        print("  }")
+      print("]")
+
+    return True
   
   def loadgame(self, cmd: Command):
-    self.clear(cmd)
+    if not self.isHome:
+      print(f"ERROR: Cannot load game: away from home '{self.home.name}'")
+      return
+    self.reloading = True
     
       
   # SECTION: PROGRAMS
@@ -259,15 +304,14 @@ class Mollusk:
       print(f"ERROR: Cache full! Buy more RAM to increase it.")
       return
 
-    obtained: File = self.cwd.getFile(cmd.args[0])
+    obtained: File = self.host.fs.get(cmd.args[0], caller='download')
     
     if obtained.isDir:
       print("ERROR: File is directory; can only download files to Cache")
       return
 
-    obtained.parent = None
-    self.cache.append(self.cwd.getFile(cmd.args[0]))
-    self.cwd.rm(cmd.args[0])
+    if self.host.fs.rm(cmd.args[0]):
+      self.cache.append(obtained)
 
   # cache, backpack
   def showCache(self):

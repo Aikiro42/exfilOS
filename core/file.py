@@ -6,10 +6,23 @@ from copy import deepcopy
 
 class File:
   def __init__(self, name:str, isDir:bool, data:str|Dict[str, File]="", parent:File|None=None):
-    self.isDir = isDir
-    self.name = name
-    self.parent = parent
-    self.data = {} if isDir else data
+    self.isDir: bool = isDir
+    self.name: str = name
+    self.parent: File | None = parent
+    self.data: str | Dict[str, File] = {} if isDir else data
+
+  def __str__(self):
+    s = f"{self.name}"
+    if self.parent is not None:
+      s = f"{self.parent.name}\n└─ {s} <-\n"
+    else:
+      s += " (ROOT)\n"
+    if self.isDir:
+      for filename in self.data.keys():
+        s += f"{'└─ ' if self.parent is None else '   └─ '}{filename}\n"
+    else:
+      s += f">> <SOF>{self.data}<EOF>"
+    return s
   
   @property
   def path(self):
@@ -24,6 +37,13 @@ class File:
     if not self.isDir: return
     didError: bool = False
     for filename, file in self.data.items():
+      if file.parent != self:
+        if verbose:
+          if not didError:
+            print(f"WARNING: '{self.path}':")
+            didError = True
+          print(f"  Detected parent mismatch: {file.parent} != {self}")
+        file.parent = self
       if file.name != filename:
         if verbose:
           if not didError:
@@ -263,6 +283,9 @@ class FileSystem:
 
     return current
 
+  def get(self, path: str, caller: str=''):
+    return self.resolvePath(path.split("/"), caller=caller)
+
   def ls(self, path: str, recursive:bool = False, all:bool=False):
     f: File | None = self.resolvePath(path.split("/"), caller='ls')
     if f is None: return
@@ -286,15 +309,15 @@ class FileSystem:
   def mkdir(self, path: str) -> bool:
     return self.mkfile(path, True)
   
-  def rm(self, path: str, recursive:bool=False) -> bool:
-    tgt: File | None = self.resolvePath(path)
+  def rm(self, path: str, recursive:bool=False, caller:str='rm') -> bool:
+    tgt: File | None = self.resolvePath(path.split("/"))
     if tgt is None: return False
     if tgt.parent is None:
-      print(f"rm: cannot remove '{path}': Is root")
+      print(f"{caller}: cannot remove '{path}': Is root")
       return
     if tgt.isDir:
       if not recursive:
-        print(f"rm: cannot remove '{path}': Is a directory")
+        print(f"{caller}: cannot remove '{path}': Is a directory")
         return False
       else:
         return tgt.parent.removeFile(tgt.name, True) is not None
