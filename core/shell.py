@@ -2,6 +2,7 @@
 from core.file import *
 from core.colors import *
 from core.host import Host
+from core.editor import TextEditor
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import ANSI
@@ -123,7 +124,7 @@ class Mollusk:
   def clear():
     os.system("cls" if os.name == "nt" else "clear")
   
-  def cls(cmd: Command | None):
+  def cls(self, cmd: Command | None):
     Mollusk.clear()
   
   def ls(self, cmd: Command):
@@ -206,6 +207,14 @@ class Mollusk:
     print(color(f"Cache (Capacity: {ncache}/{self.cacheCap}):", bcolors.INFO))
     for cachedFile in self.cache:
       print(f"- {cachedFile.name}")
+
+  def ed(self, cmd: Command):
+    if len(cmd.args) <= 0:
+      print("ERROR: File not specified.")
+    f: File | None = self.host.fs.get(cmd.args[0], 'ed')
+    if f is None: return
+    ed = TextEditor(f)
+    ed.start()
 
   def chkdsk(self, cmd: Command):
     isVerbose = 'v' in cmd.lflags or 'verbose' in cmd.wflags

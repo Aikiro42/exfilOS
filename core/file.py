@@ -25,6 +25,16 @@ class File:
     return s
   
   @property
+  def extension(self):
+    return self.name.split(".")[-1]
+  
+  @property
+  def size(self):
+    if not self.isDir:
+      return len(self.data)
+    return sum(f for f in self.data.values())
+  
+  @property
   def path(self):
     if self.parent is None: return self.name
     return f"{self.parent.path}/{self.name}"
@@ -101,6 +111,11 @@ class File:
     if tgt is None: return None
     if tgt.isDir: return None
     return tgt.data
+  
+  def edit(self, new_data:str) -> bool:
+    if self.isDir: return False
+    self.data = new_data
+    return True
 
   def editFile(self, name:str, new_data:str) -> bool:
     tgt = self.getFile(name)

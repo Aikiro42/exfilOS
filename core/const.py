@@ -23,3 +23,4 @@ class bcolors:
     MAGENTA = '\033[95m'
     YELLOW = '\033[93m'
     GREEN = '\033[92m'
+    GRAY = '\033[90m'
