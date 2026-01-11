@@ -3,6 +3,7 @@ from core.file import *
 from core.colors import *
 from core.host import Host
 from core.editor import TextEditor
+from core.util import *
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import ANSI
@@ -89,9 +90,10 @@ class Mollusk:
 
       "touch": "mkfile",
       
-      "code": "edit",
-      "nano": "edit",
-      "vim": "edit",
+      "edit": "ed",
+      "code": "ed",
+      "nano": "ed",
+      "vim": "ed",
 
       "cat": "read",
       "view": "read",
@@ -170,7 +172,12 @@ class Mollusk:
       print(f"ERROR: Cannot read {cmd.args[0]}: '{toRead.name}' is directory")
       return
     
-    print(toRead.data)
+    lines = toRead.data.split("\n")
+    lineNumberWidth = len(f"{len(lines)}")
+    print(color(f"{' '*lineNumberWidth}   {toRead.path}", bcolors.INFO))
+    for i in range(len(lines)):
+      lineNumber = f"%{lineNumberWidth}d > " % (i)
+      print(f"{color(lineNumber, bcolors.GRAY)}{lines[i]}")
   
   def rm(self, cmd: Command):
     if len(cmd.args) <= 0:
@@ -213,8 +220,10 @@ class Mollusk:
       print("ERROR: File not specified.")
     f: File | None = self.host.fs.get(cmd.args[0], 'ed')
     if f is None: return
-    ed = TextEditor(f)
-    ed.start()
+    edited = TextEditor.edit(f)
+    Mollusk.loadbar(duration=clamp(len(edited)*0.001, 0.3, 1))
+    f.edit(edited)
+    print(color(f"'{f.name}' saved successfully!", bcolors.OK))
 
   def chkdsk(self, cmd: Command):
     isVerbose = 'v' in cmd.lflags or 'verbose' in cmd.wflags

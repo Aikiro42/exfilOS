@@ -8,21 +8,16 @@ from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 
 class TextEditor:
-  def __init__(self, file: File | None):
-    self.file = file
-
-  def start(self) -> str:
+  @staticmethod
+  def edit(file: File) -> str:
     # validate file
-    if self.file is None:
-      print("ERROR: File not loaded.")
-      return
-    if self.file.isDir:
-      print(f"ERROR: Cannot edit '{self.file.path}': File is directory.")
+    if file.isDir:
+      print(f"ERROR: Cannot edit '{file.path}': File is directory.")
       return
     
     # editor-related variables
     session = PromptSession(erase_when_done=True)
-    print(color(f"EDITING: {self.file.name} ({self.file.path})", bcolors.INFO))
+    print(color(f"EDITING: {file.name} ({file.path})", bcolors.INFO))
     def prompt_continuation(width, line_number, wrap_count):
       if wrap_count > 0:
         return ANSI(color(" " * (width - 3) + " > ", bcolors.GRAY))
@@ -33,7 +28,7 @@ class TextEditor:
       session.prompt(
         ANSI(color("1 > ", bcolors.GRAY)),
         multiline=True,
-        default=self.file.data,
+        default=file.data,
         prompt_continuation=prompt_continuation,
         bottom_toolbar="Ctrl+C: Exit")
 
