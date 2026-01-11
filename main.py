@@ -22,9 +22,8 @@ def gameloop(p: Player):
   p.shell.start()
   while p.shell.running:
     p.shell.prompt()
-  os.system("cls" if os.name == "nt" else "clear")
-  print("Logging out...")
-  exportFiles(p.home.rootdir)
+  print(color("Logging out...", bcolors.INFO))
+  p.shell.savegame(None, True)
   os.system("cls" if os.name == "nt" else "clear")
 
 if __name__ == "__main__":

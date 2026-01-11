@@ -22,6 +22,7 @@ class Command:
 class Mollusk:
   def __init__(self, user:str, host:Host, cache:list[File]|None=None, cacheCap:int=16) -> None:
     self.user = user
+    self.isHome = True
     self.home = host
     self.changeHost(host)
     self.running = False
@@ -104,13 +105,13 @@ class Mollusk:
     try:
       eval(f"self.{aliases.get(cmd.exec, cmd.exec)}(cmd)")
     except Exception as e:
-      # print(f"Exception: {e}")
+      print(f"Exception: {e}")
       print(f"ERROR: Cannot process command `{cmd}`")
 
 
   # SECTION: TRAD BUILT-IN SHELL COMMANDS
 
-  def clear(self):
+  def clear(self, cmd: Command):
     os.system("cls" if os.name == "nt" else "clear")
   
   def ls(self, cmd: Command):
@@ -118,11 +119,13 @@ class Mollusk:
       print(f"IMPOSSIBLE: Current working directory is a file")
       return
     
+    isRecursive = 'r' in cmd.lflags or 'recursive' in cmd.wflags
+    showAll = 'a' in cmd.lflags or 'all' in cmd.wflags
     if len(cmd.args) > 0:
       path = cmd.args[0]
-      self.host.fs.ls(path)
+      self.host.fs.ls(path, isRecursive, showAll)
     else:
-      self.host.fs.ls("")
+      self.host.fs.ls("", isRecursive, showAll)
   
   def cd(self, cmd: Command):
     if len(cmd.args) <= 0:
@@ -141,9 +144,9 @@ class Mollusk:
       print("ERROR: No filename specified")
       return
     self.host.fs.mkfile(cmd.args[0])
-    
+
   def read(self, cmd: Command):
-    
+
     if len(cmd.args) <= 0:
       print("ERROR: No filename specified")
       return
@@ -155,8 +158,48 @@ class Mollusk:
       return
     
     print(toRead.data)
+  
+  def rm(self, cmd: Command):
+    if len(cmd.args) <= 0:
+      print("ERROR: No path specified")
+      return
+    self.host.fs.rm(cmd.args[0].split("/"), 'r' in cmd.lflags or 'recursive' in cmd.wflags)
+  
+  def mv(self, cmd: Command, remove_source:bool=True):
+    if len(cmd.args) <= 0:
+      print("ERROR: No path specified")
+      return
+    if len(cmd.args) < 2:
+      print("ERROR: No destination specified")
+      return
+    self.host.fs.mv(cmd.args[0], cmd.args[1], remove_source=remove_source)
+  
+  def cp(self, cmd: Command):
+    self.host.fs.mv(cmd, remove_source=False)
+  
+  def rename(self, cmd: Command):
+    if len(cmd.args) <= 0:
+      print("ERROR: No path specified")
+      return
+    if len(cmd.args) < 2:
+      print("ERROR: No file specified")
+      return
+    self.host.fs.rename(cmd.args[0], cmd.args[1])
 
-  def savegame(self, cmd: Command):
+  def chkdsk(self, cmd: Command):
+    isVerbose = 'v' in cmd.lflags or 'verbose' in cmd.wflags
+    self.host.fs.cwd.validateFiles(verbose = isVerbose)
+
+  def logout(self, cmd: Command):
+    if not self.isHome:
+      print(f"ERROR: Cannot logout while not in host '{self.home.name}'")
+    self.stop()
+
+  def savegame(self, cmd: Command, exiting:bool=False):
+    if exiting:
+      self.loadbar(0.5)
+      self.host.fs.root.toJson()
+      return
     if not self.loadbar(0.5, failChance=0.1):
       print(color("ERROR: Failed to save filesystem!", bcolors.ERROR))
       return
@@ -175,6 +218,9 @@ class Mollusk:
       print(f'    "parent": {f["parent"]}')
       print("  }")
     print("]")
+  
+  def loadgame(self, cmd: Command):
+    self.clear(cmd)
     
       
   # SECTION: PROGRAMS

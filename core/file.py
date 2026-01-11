@@ -16,13 +16,22 @@ class File:
     if self.parent is None: return self.name
     return f"{self.parent.path}/{self.name}"
 
-  def validateFiles(self):
+  def validateFiles(self, verbose:bool=False) -> bool:
     # Makes sure that all the keys in the directory's data
     # correspond with the name of the file they refer to.
+    # Returns True if the files are all valid.
+    # Returns False if it validated a file.
     if not self.isDir: return
+    didError: bool = False
     for filename, file in self.data.items():
       if file.name != filename:
+        if verbose:
+          if not didError:
+            print(f"WARNING: '{self.path}':")
+            didError = True
+          print(f"  Detected hash mismatch: {file.name} != {filename}")
         self.data[file.name] = self.data.pop(filename)
+    return not didError
   
   def createFile(self, name:str, isDir:bool) -> File | None:
     # Creates a file within the directory and returns it.
@@ -122,13 +131,16 @@ class File:
     if not self.isDir:
       print(f"ERROR: Cannot ls inside {self.name}")
       return
-
-    for filename, file in self.data.items(): # type: ignore
+    if all:
+      print(f"{'  '*level}{color('.', bcolors.DIR)}")
+      print(f"{'  '*level}{color('..', bcolors.DIR)}")
+    for filename, file in sorted(self.data.items(), key=lambda x: x[0]): # type: ignore
       if filename[0] == '.' and not all: continue  # skip hidden files
       print(f"{'  '*level}{color(file.name, bcolors.DIR) if file.isDir else file.name}")
 
   def toJson(self, jsonPath: str="filesys.json") -> list:
     # dfs algorithm
+    self.validateFiles()
     fileQueue = [(self, -1)]
     files = []
     while len(fileQueue) > 0:
@@ -254,7 +266,7 @@ class FileSystem:
   def ls(self, path: str, recursive:bool = False, all:bool=False):
     f: File | None = self.resolvePath(path.split("/"), caller='ls')
     if f is None: return
-    f.listFiles(path)
+    f.listFiles(all=all)
 
   def cd(self, path:str):
     f: File | None = self.resolvePath(path.split("/"))
@@ -277,6 +289,9 @@ class FileSystem:
   def rm(self, path: str, recursive:bool=False) -> bool:
     tgt: File | None = self.resolvePath(path)
     if tgt is None: return False
+    if tgt.parent is None:
+      print(f"rm: cannot remove '{path}': Is root")
+      return
     if tgt.isDir:
       if not recursive:
         print(f"rm: cannot remove '{path}': Is a directory")
