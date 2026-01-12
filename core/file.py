@@ -97,6 +97,12 @@ class File:
     file.parent = self
     return True
   
+  def getFiles(self, caller='getFiles') -> list[File] | None:
+    if not self.isDir:
+      print(f"{caller}: Cannot get files from '{self.name}': is not directory")
+      return None
+    return list(self.data.values())
+  
   def getFile(self, name: str, pop:bool = False) -> File | None:
     # dir operation
     # returns file with filename `name` within itself
@@ -258,9 +264,15 @@ class FileSystem:
     if root is not None:
       if root.isDir:
         self.root=root
-    self._root_ = self.root
-    self._cwd_ = self.root
     self.cwd = self.root
+    self.inTempRoot = False
+
+  def __str__(self):
+    return f"FileSystem: '{self.root.name}'\n"
+    
+  @property
+  def name(self):
+    return self.root.name
 
   @property
   def currentPath(self):
@@ -271,15 +283,6 @@ class FileSystem:
       current = current.parent
     return path
   
-  def changeRoot(self, tempRoot: File):
-    self._cwd_ = self.cwd
-    self.root = tempRoot
-    self.cwd = self.root
-  
-  def resetRoot(self):
-    self.root = self._root_
-    self.cwd = self._cwd_
-
   def resolvePath(self, pathList: list[str], fromFile:File|None=None, caller:str='') -> File | None:
     # Parameters:
     #   pathList = ordered list of filenames through which to traverse

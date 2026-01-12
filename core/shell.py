@@ -220,11 +220,12 @@ class Mollusk:
 
   def cache(self, cmd: Command):
     if len(cmd.args) < 1:
-      self.host.fs.changeRoot(self.user.cache)
-      print(color("Enter `cache exit` to return to root", bcolors.INFO))
+      if self.host.switch(self.user.cache, caller='Mollusk.cache'):
+        print(color("Enter `cache exit` to return to root", bcolors.INFO))
     else:
       if cmd.args[0] == "exit":
-        self.host.fs.resetRoot()
+        self.host.switch(None)
+        self.host.unmount(self.user.cache.name, caller='Mollusk.cache')
       else:
         print(color("Enter `cache exit` to return to root", bcolors.INFO))
 
@@ -263,11 +264,13 @@ class Mollusk:
     if savepath == "":
       savepath = self.user.savepath
     
-    fsJsonPath = f"{self.user.savepath}/filesys.json"
-    cacheJsonPath = f"{self.user.savepath}/cache.json"
+    fsJsonPath = f"{savepath}/filesys.json"
+    cacheJsonPath = f"{savepath}/cache.json"
     
     # Save game without loadboar on keyboard interrupt
     if forceExit:
+      self.host.switch(None)
+      self.host.unmount(self.user.cache.name, caller='Mollusk.savegame')
       self.host.fs.root.toJson(jsonPath=fsJsonPath)
       self.user.cache.toJson(jsonPath=cacheJsonPath)
       return True
@@ -275,17 +278,23 @@ class Mollusk:
     # Loadbar on exit
     if exiting:
       Mollusk.loadbar(0.5)
+      self.host.switch(None)
+      self.host.unmount(self.user.cache.name, caller='Mollusk.savegame')
       self.host.fs.root.toJson(jsonPath=fsJsonPath)
       self.user.cache.toJson(jsonPath=cacheJsonPath)
       return False
     
+    
+    self.host.switch(None)
+    self.host.unmount(self.user.cache.name, caller='Mollusk.savegame')
+
     # 10% chance to fail saving the system
     if not Mollusk.loadbar(0.5, failChance=0.1):
       print(color("ERROR: Failed to save filesystem!", bcolors.ERROR))
       return False
     
     self.host.fs.root.toJson(jsonPath=fsJsonPath)  # save success
-    self.user.cache.toJson(jsonPath=cacheJsonPath)  # save success
+    self.user.cache.toJson(jsonPath=cacheJsonPath)
 
     print(color("Successfully saved filesystem!", bcolors.OK))
 
@@ -358,9 +367,9 @@ class Mollusk:
 
   def upload(self, cmd: Command):
     if len(cmd.args) <= 0:
-      for filename, file in self.user.cache.data.items():
-        Mollusk.loadbar(duration=file.size*0.001, end=filename)
-        self.host.fs.cwd.addFile(self.user.cache.removeFile(filename))
+      for file in self.user.cache.getFiles():
+        Mollusk.loadbar(duration=file.size*0.001, end=file.name)
+        self.host.fs.cwd.addFile(self.user.cache.removeFile(file.name))
       return
     
     if len(cmd.args) == 1:
