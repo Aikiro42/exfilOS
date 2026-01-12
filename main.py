@@ -1,44 +1,38 @@
 from core.file import *
 from core.shell import Command, Mollusk
-from core.game import Player
+from core.user import User
 from core.colors import color, bcolors
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import ANSI
 import os
 
-def gameinit():
+def gameinit() -> User:
 
   Mollusk.clear()
-  p = Player("guest")
-  return p
-
   pname = prompt(ANSI(color("Enter username: ", bcolors.INFO)))
   if pname == "": pname = "guest"
   print(color(f"Welcome, {pname}! Logging in...", bcolors.OK))
   Mollusk.loadbar()
+  return User(pname)
 
-def gameloop(p: Player):
+def gameloop(sh: Mollusk):
   Mollusk.clear()
-  p.shell.start()
-  while p.shell.running:
-    p.shell.prompt()
-    if p.shell.reloading:
-      Mollusk.loadbar()
-      Mollusk.clear()
-      p.load()
-      p.shell.start()
+  sh.start()
+  while sh.running:
+    sh.prompt()
   print(color("Logging out...", bcolors.INFO))
-  p.shell.savegame(None, True)
+  sh.savegame(None, True)
   Mollusk.clear()
 
 if __name__ == "__main__":
   try:
     p = gameinit()
-    gameloop(p)
+    sh = Mollusk(p)
+    gameloop(sh)
   except KeyboardInterrupt:
     Mollusk.clear()
     print(color("WARNING: exfilOS force-exited via Ctrl+C.", bcolors.WARNING))
-    if p.shell.savegame(None, forceExit=True):
+    if sh.savegame(None, forceExit=True):
       print(color("Game saved successfully.", bcolors.OK))
     else:
       print(color("Game failed to save!", bcolors.ERROR))

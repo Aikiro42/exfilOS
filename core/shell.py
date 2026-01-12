@@ -2,6 +2,7 @@
 from core.file import *
 from core.colors import *
 from core.host import Host
+from core.user import User
 from core.editor import TextEditor
 from core.util import *
 
@@ -25,22 +26,23 @@ class Command:
     return self.cmdstr
 
 class Mollusk:
-  def __init__(self, user:str, host:Host, cache:Dict[str, File]|None=None, cacheCap:int=2**14) -> None:
-    self.user = user
-    self.isHome = True
-    self.home = host
-    self.changeHost(host)
+  def __init__(self, user: User) -> None:
     self.timers = {}
     self.logs = []
-
     self.promptSession = PromptSession()
-
     self.running = False
     self.reloading = False
+    self.login(user)
     
-    # Player data passed into the shell
-    self.cache: Dict[str, File] = {} if cache is None else cache
-    self.cacheCap = cacheCap
+  def login(self, user: User):
+    self.user = user
+    try:
+      self.home = Host("localhost", File.fromJson(f"{self.user.savepath}/filesys.json"))
+    except Exception as e:
+      print(e)
+      self.home = Host("localhost", File(ROOT_NAME, True))
+    self.host = self.home
+    self.isHome = True
 
   @property
   def cwd(self):
@@ -64,7 +66,7 @@ class Mollusk:
   
   @property
   def promptString(self):
-    return f"{color(f"{self.user}@{self.host.name}", bcolors.PROFILE)}:{color(self.cwd.path, bcolors.CWD)}$ "
+    return f"{color(f"{self.user.name}@{self.host.name}", bcolors.PROFILE)}:{color(self.cwd.path, bcolors.CWD)}$ "
 
   def prompt(self, promptString:str=""):
     s = self.promptString
@@ -103,9 +105,6 @@ class Mollusk:
 
       "restart": "loadgame",
       "reload": "loadgame",
-
-      "backpack": "viewCache",
-      "cache": "viewCache",
 
       "dl": "download",
       "wget": "download",
@@ -219,14 +218,16 @@ class Mollusk:
       return
     print(f"{f.size} Bytes")
 
-  def viewCache(self, cmd: Command):
-    ncache = sum(x.size for x in self.cache.values())
-    if ncache <= 0:
-      print(color(f"No items in cache (0/{self.cacheCap} B).", bcolors.INFO))
-      return
-    print(color(f"Cache (Capacity: {ncache:}/{self.cacheCap} B):", bcolors.INFO))
-    for cachedFile in sorted(self.cache.values(), key=lambda x: x.size, reverse=True):
-      print(f"- {cachedFile.name} ({cachedFile.size})")
+  def cache(self, cmd: Command):
+    if len(cmd.args) < 1:
+      self.host.fs.changeRoot(self.user.cache)
+      print(color("Enter `cache exit` to return to root", bcolors.INFO))
+    else:
+      if cmd.args[0] == "exit":
+        self.host.fs.resetRoot()
+      else:
+        print(color("Enter `cache exit` to return to root", bcolors.INFO))
+
 
   def ed(self, cmd: Command):
     if len(cmd.args) <= 0:
@@ -252,22 +253,30 @@ class Mollusk:
       print(f"ERROR: Cannot logout while not in host '{self.home.name}'")
     self.stop()
 
-  def savegame(self, cmd: Command, exiting:bool=False, forceExit:bool=False) -> bool:
+  def savegame(self, cmd: Command, exiting:bool=False, forceExit:bool=False, savepath:str="") -> bool:
     
     # Cannot save away from home
     if not self.isHome:
       print(color(f"ERROR: Cannot save filesystem: not at home '{self.home.name}'", bcolors.ERROR))
       return False
     
+    if savepath == "":
+      savepath = self.user.savepath
+    
+    fsJsonPath = f"{self.user.savepath}/filesys.json"
+    cacheJsonPath = f"{self.user.savepath}/cache.json"
+    
     # Save game without loadboar on keyboard interrupt
     if forceExit:
-      self.host.fs.root.toJson()
+      self.host.fs.root.toJson(jsonPath=fsJsonPath)
+      self.user.cache.toJson(jsonPath=cacheJsonPath)
       return True
     
     # Loadbar on exit
     if exiting:
       Mollusk.loadbar(0.5)
-      self.host.fs.root.toJson()
+      self.host.fs.root.toJson(jsonPath=fsJsonPath)
+      self.user.cache.toJson(jsonPath=cacheJsonPath)
       return False
     
     # 10% chance to fail saving the system
@@ -275,25 +284,10 @@ class Mollusk:
       print(color("ERROR: Failed to save filesystem!", bcolors.ERROR))
       return False
     
-    files = self.host.fs.root.toJson()  # save success
+    self.host.fs.root.toJson(jsonPath=fsJsonPath)  # save success
+    self.user.cache.toJson(jsonPath=cacheJsonPath)  # save success
 
-    # Silent means "don't print success message"
-    if 's' in cmd.lflags or 'silent' in cmd.wflags:
-      return True
-    
     print(color("Successfully saved filesystem!", bcolors.OK))
-    
-    # Verbose prints the contents of the saved json file.
-    if 'v' in cmd.lflags or 'verbose' in cmd.wflags:
-      print("[")
-      for f in files:
-        # print(f"  {f['index']}: {'{'}")
-        print("  {")
-        print(f'    "name": "{f["name"]}"')
-        print(f'    "isDir": "{f["isDir"]}"')
-        print(f'    "parent": {f["parent"]}')
-        print("  }")
-      print("]")
 
     return True
   
@@ -355,35 +349,23 @@ class Mollusk:
     if cmd.args[0] not in self.cwd.data.keys():
       print(f"ERROR: File {cmd.args[0]} not found")
       return
-    currentCacheSize = sum(x.size for x in self.cache.values())
-    if currentCacheSize >= self.cacheCap:
-      print(f"ERROR: Cache full! Buy more RAM to increase it.")
-      return
 
     obtained: File = self.host.fs.get(cmd.args[0], caller='download')
-    
-    if obtained.isDir:
-      print("ERROR: File is directory; can only download files to Cache")
-      return
-
-    if obtained.size + currentCacheSize >= self.cacheCap:
-      print("ERROR: Cache too full to accomodate file!")
-      return
 
     if self.host.fs.rm(cmd.args[0]):
-      self.cache[obtained.name] = obtained
+      Mollusk.loadbar()
+      self.user.cache.addFile(obtained, caller='download')
 
   def upload(self, cmd: Command):
     if len(cmd.args) <= 0:
-      for filename, file in self.cache.items():
+      for filename, file in self.user.cache.data.items():
         Mollusk.loadbar(duration=file.size*0.001, end=filename)
-        self.host.fs.cwd.addFile(self.cache.pop(filename))
-        print(color(f"\b{filename}", bcolors.OK))
+        self.host.fs.cwd.addFile(self.user.cache.removeFile(filename))
       return
     
     if len(cmd.args) == 1:
       filename = cmd.args[0]
-      file = self.cache.get(filename, None)
+      file = self.user.cache.getFile(filename, None)
       if file is None:
         print(f"ERROR: Cannot find '{filename}' in cache.")
         return

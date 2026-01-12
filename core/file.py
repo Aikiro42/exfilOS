@@ -4,6 +4,7 @@ from .const import *
 from .colors import color
 from copy import deepcopy
 import secrets, string
+from pathlib import Path
 
 class File:
   def __init__(self, name:str, isDir:bool, data:str|Dict[str, File]="", parent:File|None=None):
@@ -200,15 +201,20 @@ class File:
         for child in f[0].data.values():
           fileQueue.append((child, len(files) - 1))
     
-    with open(jsonPath, "w") as jsonFile:
-      jsonFile.write(json.dumps(files))
+    p = Path(jsonPath)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch(exist_ok=True)
+    p.write_text(json.dumps(files, indent=2))
 
+    # with open(jsonPath, "w") as jsonFile:
+    #   jsonFile.write(json.dumps(files))
     return files
 
   @staticmethod
   def fromJson(jsonPath: str) -> File:
       files: list[File] = []
-      with open(jsonPath) as jsonObj:
+      p = Path(jsonPath)
+      with p.open() as jsonObj:
         fileDefs = json.loads(jsonObj.read())
         for fileDef in fileDefs:
           isDir = fileDef["isDir"]
@@ -219,8 +225,6 @@ class File:
             files[parentIndex].addFile(newFile)
       return files[0]
 
-
-
   @staticmethod
   def fromDict(rootDict: dict, rootName: str) -> File:
     rootFile = File(rootName, True)
@@ -228,15 +232,34 @@ class File:
       newFile = File(fileName, type(fileData) is not str)
       rootFile.addFile(newFile, caller='fromDict')
     return rootFile
-
-
-
+  
+class Cache(File):
+  
+  def __init__(self, maxCapacity:int=2**14):  
+    File.__init__(self, 'cache', True)
+    self.maxCapacity=maxCapacity
+  
+  def addFile(self, file: File, caller: str = 'cache.addFile') -> bool:
+    if file.isDir:
+      print(f"{caller}: Cannot add file '{file.name}' to cache: is directory")
+      return False
+    return super().addFile(file, False, caller)
+  
+  def toJson(self, jsonPath: str = "cache.json") -> list:
+    return super().toJson(jsonPath)
+  
+  def fromFile(self, file: File):
+    self.name = file.name
+    self.data = file.data
+  
 class FileSystem:
   def __init__(self, root:File|None=None):
     self.root = File("~", isDir=True)
     if root is not None:
       if root.isDir:
         self.root=root
+    self._root_ = self.root
+    self._cwd_ = self.root
     self.cwd = self.root
 
   @property
@@ -247,6 +270,15 @@ class FileSystem:
       path = f"{current.parent.name}/{path}"
       current = current.parent
     return path
+  
+  def changeRoot(self, tempRoot: File):
+    self._cwd_ = self.cwd
+    self.root = tempRoot
+    self.cwd = self.root
+  
+  def resetRoot(self):
+    self.root = self._root_
+    self.cwd = self._cwd_
 
   def resolvePath(self, pathList: list[str], fromFile:File|None=None, caller:str='') -> File | None:
     # Parameters:
