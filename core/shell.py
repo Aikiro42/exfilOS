@@ -366,38 +366,7 @@ class Mollusk:
       self.user.cache.addFile(obtained, caller='download')
 
   def upload(self, cmd: Command):
-    if len(cmd.args) <= 0:
-      for file in self.user.cache.getFiles():
-        Mollusk.loadbar(duration=file.size*0.001, end=file.name)
-        self.host.fs.cwd.addFile(self.user.cache.removeFile(file.name))
-      return
-    
-    if len(cmd.args) == 1:
-      filename = cmd.args[0]
-      file = self.user.cache.getFile(filename, None)
-      if file is None:
-        print(f"ERROR: Cannot find '{filename}' in cache.")
-        return
-      Mollusk.loadbar(duration=file.size*0.001)
-      self.host.fs.cwd.addFile(self.cache.pop(filename))
-      print(color(f"Uploaded {filename} to '{self.host.fs.cwd.name}'.", bcolors.OK))
-    
-    if len(cmd.args) >= 2:
-      filename = cmd.args[0]
-      file = self.cache.get(filename, None)
-      if file is None:
-        print(f"ERROR: Cannot find '{filename}' in cache.")
-        return
-      dst = self.host.fs.get(cmd.args[1], caller='upload')
-      if dst is None: return
-      if not dst.isDir:
-        print(f"ERROR: Cannot upload to '{cmd.args[1]}': is a file")
-        return
-      Mollusk.loadbar(duration=file.size*0.001)
-      dst.addFile(self.cache.pop(filename))
-      print(color(f"Uploaded {filename} to '{dst.name}'.", bcolors.OK))
-
-      
+    ...
 
   @staticmethod
   def loadbar(duration=1, barlength=30, failChance:float=0, end=""):
