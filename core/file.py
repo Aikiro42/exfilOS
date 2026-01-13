@@ -7,11 +7,25 @@ import secrets, string
 from pathlib import Path
 
 class File:
-  def __init__(self, name:str, isDir:bool, data:str|Dict[str, File]="", parent:File|None=None):
+  def __init__(self, name:str, isDir:bool, data:str|Dict[str, File]="", parent:File|None=None, capacity:int=-1):
     self.isDir: bool = isDir
     self.name: str = name
     self.parent: File | None = parent
     self.data: str | Dict[str, File] = {} if isDir else data
+    self._capacity_ = capacity if isDir else -1
+  
+  @property
+  def capacity(self) -> int:
+    return self._capacity_
+
+  @capacity.setter
+  def capacity(self, value: int):
+    if value < 0 or not self.isDir:
+      self._capacity_ = -1
+    elif self.size <= value:
+      self.capacity = value
+    else:
+      print("WARNING: Something attempted to set a file's capacity below its size.")
 
   def __str__(self):
     s = f"{self.name}"
@@ -34,7 +48,7 @@ class File:
   def size(self):
     if not self.isDir:
       return len(self.data)
-    return sum(f for f in self.data.values())
+    return sum(f.size for f in self.data.values())
   
   @property
   def path(self):
@@ -94,10 +108,18 @@ class File:
     # Adds a file into the data of the file
     # this function is called from.
     # Returns true on success, false on failure.
+    
     if not self.isDir: return False
+    
     if self.getFile(file.name) and not replace:
-      print(f"{'ERROR' if caller == '' else caller}: cannot add file '{file.name}': '{self.path}' already exists")
+      print(f"{caller}: cannot add file '{file.name}': '{self.path}' already exists")
       return False
+    
+    rootCap = self.root.capacity
+    if rootCap > 0 and self.root.size + file.size > rootCap:
+      print(f"{caller}: cannot add file '{file.name}': not enough space")
+      return False
+    
     self.data[file.name] = file
     file.parent = self
     return True
@@ -133,17 +155,18 @@ class File:
     if tgt.isDir: return None
     return tgt.data
   
-  def edit(self, new_data:str) -> bool:
+  def edit(self, new_data:str, caller:str='File.edit') -> bool:
     if self.isDir: return False
+    if self.root.size - self.size + len(new_data) > self.root.capacity:
+      print(f"{caller}: cannot edit file '{self.name}': edit exceeds root capacity")
+      return False
     self.data = new_data
     return True
 
   def editFile(self, name:str, new_data:str) -> bool:
     tgt = self.getFile(name)
     if tgt is None: return False
-    if tgt.isDir: return False
-    tgt.data = new_data
-    return True
+    return tgt.edit(new_data)
     
   def removeFile(self, name:str, recursive:bool=False) -> File | None:
     # Removes a file with the associated name from its File dictionary
@@ -204,7 +227,7 @@ class File:
       files.append({
         # "index": len(files),
         "name": f[0].name,
-        "isDir": f[0].isDir,
+        "capacity": f[0].capacity,
         "parent": f[1],
         "data": None if f[0].isDir else f[0].data
       })
@@ -228,8 +251,8 @@ class File:
       with p.open() as jsonObj:
         fileDefs = json.loads(jsonObj.read())
         for fileDef in fileDefs:
-          isDir = fileDef["isDir"]
-          newFile = File(fileDef["name"], isDir, fileDef.get("data", {} if isDir else ""))
+          isDir = fileDef.get("data", None) is None
+          newFile = File(fileDef["name"], isDir=isDir, data=fileDef.get("data", {} if isDir else ""), capacity=fileDef["capacity"])
           files.append(newFile)
           parentIndex: int = fileDef["parent"]
           if fileDef["parent"] > -1:
@@ -246,10 +269,9 @@ class File:
   
 class Cache(File):
   
-  def __init__(self, maxCapacity:int=2**14):  
-    File.__init__(self, 'cache', True)
-    self.maxCapacity=maxCapacity
-  
+  def __init__(self, capacity:int=2**8):  
+    File.__init__(self, 'cache', True, capacity=capacity)
+    
   def addFile(self, file: File, caller: str = 'cache.addFile') -> bool:
     if file.isDir:
       print(f"{caller}: Cannot add file '{file.name}' to cache: is directory")
@@ -264,8 +286,8 @@ class Cache(File):
     self.data = file.data
   
 class FileSystem:
-  def __init__(self, root:File|None=None):
-    self.root = File("~", isDir=True)
+  def __init__(self, root:File|None=None, capacity:int=-1):
+    self.root = File("~", isDir=True, capacity=capacity)
     if root is not None:
       if root.isDir:
         self.root=root
@@ -278,6 +300,14 @@ class FileSystem:
   @property
   def name(self):
     return self.root.name
+
+  @property
+  def size(self):
+    return self.root.size
+  
+  @property
+  def capacity(self):
+    return self.root.capacity
 
   @property
   def currentPath(self):

@@ -12,6 +12,9 @@ class Host:
   @property
   def fs(self):
     return self.currentfs
+  
+  def listFileSystems(self) -> list[(str, int, int)]:
+    return [(fsname, fs.size, fs.capacity) for fsname, fs in self.mounted.items()]
 
   def mount(self, fs: FileSystem | File, caller='Host.mount') -> FileSystem:
     

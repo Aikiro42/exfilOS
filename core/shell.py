@@ -40,7 +40,7 @@ class Mollusk:
       self.home = Host("localhost", File.fromJson(f"{self.user.savepath}/filesys.json"))
     except Exception as e:
       print(e)
-      self.home = Host("localhost", File(ROOT_NAME, True))
+      self.home = Host("localhost", File(ROOT_NAME, True, capacity=2**16))
     self.host = self.home
     self.isHome = True
 
@@ -125,6 +125,19 @@ class Mollusk:
   def clear():
     os.system("cls" if os.name == "nt" else "clear")
   
+  def df(self, cmd: Command | None):
+    for name, size, cap in self.host.listFileSystems():
+      ratio = size/cap
+      textColor = bcolors.INFO
+      if ratio < 0.5:
+        textColor = bcolors.OK
+      elif ratio < 0.8:
+        textColor = bcolors.WARNING
+      else:
+        textColor = bcolors.ERROR
+      print(color(f"{name:>10} : ({ratio:.1f}%) {size} / {cap} B", textColor))
+
+
   def cls(self, cmd: Command | None):
     Mollusk.clear()
   
