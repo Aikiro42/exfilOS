@@ -55,16 +55,16 @@ class Dir(File):
 
   def __init__(self, name: str, data: Dict[str, File]=None, parent:Dir|None=None, capacity:int=-1):
     super().__init__(name, "", parent)
-    self.children: Dict[str, File]
+    self.data: Dict[str, File]
     if data is None:
-      self.children = {}
+      self.data = {}
     else:
-      self.children = data
+      self.data = data
     self._capacity_ = capacity
 
   @property
   def size(self) -> int:
-    return sum(f.size for f in self.children.values())
+    return sum(f.size for f in self.data.values())
   
   @property
   def capacity(self) -> int:
@@ -79,13 +79,13 @@ class Dir(File):
     else:
       print("WARNING: Something attempted to set a file's capacity below its size.")
   
-  def addFile(self, file:File, replace:bool=False, caller:str='') -> bool:
+  def addFile(self, file:File, replace:bool=False, caller:str='Dir.addFile') -> bool:
     # Adds a file into the data of the file
     # this function is called from.
     # Returns true on success, false on failure.
     
     if self.getFile(file.name) and not replace:
-      print(f"{caller}: cannot add file '{file.name}': '{self.path}' already exists")
+      print(f"{caller}: cannot add file '{file.name}': already exists")
       return False
     
     rootCap = self.root.capacity
@@ -97,20 +97,11 @@ class Dir(File):
     file.parent = self
     return True
   
-  def getFiles(self, caller='getFiles') -> list[File] | None:
-    if not self.isDir:
-      print(f"{caller}: Cannot get files from '{self.name}': is not directory")
-      return None
+  def getFiles(self) -> list[File] | None:
     return list(self.data.values())
   
   def getFile(self, name: str, pop:bool = False) -> File | None:
-    # dir operation
-    # returns file with filename `name` within itself
-    # returns None if file is nonexistent
-    if not self.isDir:
-      print(f"ERROR: Cannot retrieve file from {self.name}, is file")
-      return None
-    if name not in self.data.keys():  # FIXME: change to dict.get()?
+    if self.data.get(name, None) is None:
       return None
     if pop:
       return self.data.pop(name)
@@ -122,10 +113,9 @@ class Dir(File):
     # If the file on which this function is called
     # is not a directory, this function returns
     # the file's contents instead.
-    if not self.isDir: return self.data
     tgt = self.getFile(name)
     if tgt is None: return None
-    if tgt.isDir: return None
+    if isinstance(tgt, Dir): return None
     return tgt.data
 
   def editFile(self, name:str, new_data:str) -> bool:
@@ -134,9 +124,6 @@ class Dir(File):
     return tgt.edit(new_data)
     
   def removeFile(self, name:str, recursive:bool=False) -> File | None:
-    # Removes a file with the associated name from its File dictionary
-    # Returns the removed file if success, None otherwise.
-    if not self.isDir: return None
     
     # Attempt to retrieve the file to delete
     tgt = self.getFile(name)
@@ -149,7 +136,7 @@ class Dir(File):
 
     # Check if file is a directory
     # Otherwise, report failure to delete
-    if tgt.isDir and not recursive:
+    if isinstance(tgt, Dir) and not recursive:
       print(f"rm: cannot remove '{tgt.name}': is directory with contents")
       return None
     
@@ -173,14 +160,15 @@ class Dir(File):
     files = []
     while len(fileQueue) > 0:
       f = fileQueue.pop(0)
+      isDir = isinstance(f[0], Dir)
       files.append({
         # "index": len(files),
         "name": f[0].name,
         "capacity": f[0].capacity,
         "parent": f[1],
-        "data": None if f[0].isDir else f[0].data
+        "data": None if isDir else f[0].data
       })
-      if f[0].isDir:
+      if isDir:
         for child in f[0].data.values():
           fileQueue.append((child, len(files) - 1))
     
@@ -198,50 +186,43 @@ class Dir(File):
       files: list[File] = []
       p = Path(jsonPath)
       with p.open() as jsonObj:
-        fileDefs = json.loads(jsonObj.read())
+        fileDefs: list[dict] = json.loads(jsonObj.read())
         for fileDef in fileDefs:
           isDir = fileDef.get("data", None) is None
-          newFile = File(fileDef["name"], isDir=isDir, data=fileDef.get("data", {} if isDir else ""), capacity=fileDef["capacity"])
+          newFile: File
+          if isDir:
+            newFile = Dir(fileDef["name"], data={}, capacity=fileDef["capacity"])
+          else:
+            newFile = File(fileDef["name"], data=fileDef["data"])
           files.append(newFile)
           parentIndex: int = fileDef["parent"]
           if fileDef["parent"] > -1:
-            files[parentIndex].addFile(newFile)
+            d = files[parentIndex]
+            if isinstance(d, Dir):
+              d.addFile(newFile)
       return files[0]
-
-  @staticmethod
-  def fromDict(rootDict: dict, rootName: str) -> File:
-    rootFile = File(rootName, True)
-    for fileName, fileData in rootDict:
-      newFile = File(fileName, type(fileData) is not str)
-      rootFile.addFile(newFile, caller='fromDict')
-    return rootFile
   
 class Cache(Dir):
   
-  def __init__(self, capacity:int=2**8):  
-    File.__init__(self, 'cache', True, capacity=capacity)
-    
-  def addFile(self, file: File, caller: str = 'cache.addFile') -> bool:
-    if file.isDir:
-      print(f"{caller}: Cannot add file '{file.name}' to cache: is directory")
-      return False
-    return super().addFile(file, False, caller)
+  def __init__(self, name:str="cache", capacity:int=2**8):  
+    super().__init__(name, capacity=capacity)
   
   def toJson(self, jsonPath: str = "cache.json") -> list:
     return super().toJson(jsonPath)
   
-  def fromFile(self, file: File):
-    self.name = file.name
-    self.data = file.data
+  @classmethod
+  def fromDir(cls, dir: Dir) -> Cache:
+    c = cls(name=dir.name, capacity=dir.capacity)
+    c.data = dir.data
+    return c
   
 class FileSystem:
-  def __init__(self, root:File|None=None, capacity:int=-1):
-    self.root = File("~", isDir=True, capacity=capacity)
-    if root is not None:
-      if root.isDir:
-        self.root=root
+  def __init__(self, name:str="~", root:Dir|None=None, capacity:int=-1):
+    if root is None:
+      self.root = Dir(name, capacity=capacity)
+    else:
+      self.root=root
     self.cwd = self.root
-    self.inTempRoot = False
 
   def __str__(self):
     return f"FileSystem: '{self.root.name}'\n"
@@ -267,7 +248,7 @@ class FileSystem:
       current = current.parent
     return path
   
-  def resolvePath(self, pathList: list[str], fromFile:File|None=None, caller:str='') -> File | None:
+  def resolvePath(self, pathList: list[str], fromFile:File|None=None, caller:str='FileSystem.resolvePath') -> File | None:
     # Parameters:
     #   pathList = ordered list of filenames through which to traverse
     # Returns the final file in the path.
