@@ -106,3 +106,38 @@
       print(f"ERROR: No command found with name \"{cmd.cmdstr}\"")
 
 ```
+
+---
+
+Suppose I have the following classes:
+```python
+class File: pass
+class Dir(File): pass
+class Cache(Dir): pass
+class FileSystem(Dir): pass
+```
+- Are `File`, `Dir`, `Cache`, `FileSystem` all `File`s? How would PyLance treat them?
+- Any operation I do with `File`s, I can do with the others?
+  - Can the same be said with `Dir`s and `Cache`s, `FileSystem`s?
+
+---
+
+Would this work?
+```python
+from typing import Dict
+
+class File:
+  def __init__(self, name:str, data:str="", parent:Dir|None=None):
+    self.name: str = name
+    self.parent: Dir | None = parent
+    self.data: str = data
+  ...
+    
+class Dir(File):
+  def __init__(self, name: str, data:Dict[str, File]={}, parent:Dir|None=None, capacity:int=-1):
+    self.name: str = name
+    self.parent: Dir | None = parent
+    self.data: Dict[str, File] = data
+    self._capacity_ = capacity
+  ...
+```

@@ -7,12 +7,64 @@ import secrets, string
 from pathlib import Path
 
 class File:
-  def __init__(self, name:str, isDir:bool, data:str|Dict[str, File]="", parent:File|None=None, capacity:int=-1):
-    self.isDir: bool = isDir
+  def __init__(self, name:str, data:str="", parent:Dir|None=None):
     self.name: str = name
-    self.parent: File | None = parent
-    self.data: str | Dict[str, File] = {} if isDir else data
-    self._capacity_ = capacity if isDir else -1
+    self.parent: Dir | None = parent
+    self.data: str = data
+  
+  @property
+  def extension(self):
+    s = self.name.split(".")
+    if len(s) == 1: return ""
+    return s[-1]
+  
+  @property
+  def size(self):
+    return len(self.data)
+  
+  @property
+  def path(self):
+    if self.parent is None: return self.name
+    return f"{self.parent.path}/{self.name}"
+  
+  @property
+  def root(self):
+    if self.parent is None: return self
+    return self.parent.root
+
+  @staticmethod
+  def generate(size: int, name:str="") -> File:
+    alphabet = string.ascii_letters + string.digits
+    if name == "":
+      name = ''.join(secrets.choice(alphabet) for _ in range(size))
+    data:str = ''.join(secrets.choice(alphabet) for _ in range(size))
+    return File(name, data)
+
+  def rename(self, new_name: str) -> bool:
+    return self.parent.renameFile(self.name, new_name)
+  
+  def edit(self, new_data:str, caller:str='File.edit') -> bool:
+    if self.isDir: return False
+    if self.root.size - self.size + len(new_data) > self.root.capacity:
+      print(f"{caller}: cannot edit file '{self.name}': edit exceeds root capacity")
+      return False
+    self.data = new_data
+    return True
+
+class Dir(File):
+
+  def __init__(self, name: str, data: Dict[str, File]=None, parent:Dir|None=None, capacity:int=-1):
+    super().__init__(name, "", parent)
+    self.children: Dict[str, File]
+    if data is None:
+      self.children = {}
+    else:
+      self.children = data
+    self._capacity_ = capacity
+
+  @property
+  def size(self) -> int:
+    return sum(f.size for f in self.children.values())
   
   @property
   def capacity(self) -> int:
@@ -26,90 +78,11 @@ class File:
       self.capacity = value
     else:
       print("WARNING: Something attempted to set a file's capacity below its size.")
-
-  def __str__(self):
-    s = f"{self.name}"
-    if self.parent is not None:
-      s = f"{self.parent.name}\n└─ {s} <-\n"
-    else:
-      s += " (ROOT)\n"
-    if self.isDir:
-      for filename in self.data.keys():
-        s += f"{'└─ ' if self.parent is None else '   └─ '}{filename}\n"
-    else:
-      s += f">> <SOF>{self.data}<EOF>"
-    return s
-  
-  @property
-  def extension(self):
-    return self.name.split(".")[-1]
-  
-  @property
-  def size(self):
-    if not self.isDir:
-      return len(self.data)
-    return sum(f.size for f in self.data.values())
-  
-  @property
-  def path(self):
-    if self.parent is None: return self.name
-    return f"{self.parent.path}/{self.name}"
-  
-  @property
-  def root(self):
-    if self.parent is None: return self
-    return self.parent.root
-
-  def validateFiles(self, verbose:bool=False) -> bool:
-    # Makes sure that all the keys in the directory's data
-    # correspond with the name of the file they refer to.
-    # Returns True if the files are all valid.
-    # Returns False if it validated a file.
-    if not self.isDir: return
-    didError: bool = False
-    for filename, file in self.data.items():
-      if file.parent != self:
-        if verbose:
-          if not didError:
-            print(f"WARNING: '{self.path}':")
-            didError = True
-          print(f"  Detected parent mismatch: {file.parent} != {self}")
-        file.parent = self
-      if file.name != filename:
-        if verbose:
-          if not didError:
-            print(f"WARNING: '{self.path}':")
-            didError = True
-          print(f"  Detected hash mismatch: {file.name} != {filename}")
-        self.data[file.name] = self.data.pop(filename)
-    return not didError
-  
-  @staticmethod
-  def generate(size: int, name:str="") -> File:
-    alphabet = string.ascii_letters + string.digits
-    if name == "":
-      name = ''.join(secrets.choice(alphabet) for _ in range(size))
-    data:str = ''.join(secrets.choice(alphabet) for _ in range(size))
-    return File(name, False, data)
-  
-  def createFile(self, name:str, isDir:bool) -> File | None:
-    # Creates a file within the directory and returns it.
-    # Returns the file if it already exists.
-    # Returns None if the file on which this function is called
-    # is not a directory.
-    if not self.isDir: return None
-    made = self.getFile(name)
-    if made is None:
-      made = File(name, isDir, parent=self)
-      self.data[name] = made
-    return made
   
   def addFile(self, file:File, replace:bool=False, caller:str='') -> bool:
     # Adds a file into the data of the file
     # this function is called from.
     # Returns true on success, false on failure.
-    
-    if not self.isDir: return False
     
     if self.getFile(file.name) and not replace:
       print(f"{caller}: cannot add file '{file.name}': '{self.path}' already exists")
@@ -154,14 +127,6 @@ class File:
     if tgt is None: return None
     if tgt.isDir: return None
     return tgt.data
-  
-  def edit(self, new_data:str, caller:str='File.edit') -> bool:
-    if self.isDir: return False
-    if self.root.size - self.size + len(new_data) > self.root.capacity:
-      print(f"{caller}: cannot edit file '{self.name}': edit exceeds root capacity")
-      return False
-    self.data = new_data
-    return True
 
   def editFile(self, name:str, new_data:str) -> bool:
     tgt = self.getFile(name)
@@ -200,22 +165,6 @@ class File:
     tgt.name = new_name
     self.data[new_name] = self.data.pop(old_name)
     return True
-  
-  def rename(self, new_name: str) -> bool:
-    return self.parent.renameFile(self.name, new_name)
-  
-    # dir operation
-  # lists all files within
-  def listFiles(self, all:bool=False, level:int=0):
-    if not self.isDir:
-      print(f"ERROR: Cannot ls inside {self.name}")
-      return
-    if all:
-      print(f"{'  '*level}{color('.', bcolors.DIR)}")
-      print(f"{'  '*level}{color('..', bcolors.DIR)}")
-    for filename, file in sorted(self.data.items(), key=lambda x: x[0]): # type: ignore
-      if filename[0] == '.' and not all: continue  # skip hidden files
-      print(f"{'  '*level}{color(file.name, bcolors.DIR) if file.isDir else file.name}")
 
   def toJson(self, jsonPath: str="filesys.json") -> list:
     # dfs algorithm
@@ -267,7 +216,7 @@ class File:
       rootFile.addFile(newFile, caller='fromDict')
     return rootFile
   
-class Cache(File):
+class Cache(Dir):
   
   def __init__(self, capacity:int=2**8):  
     File.__init__(self, 'cache', True, capacity=capacity)

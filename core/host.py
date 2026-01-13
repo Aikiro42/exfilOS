@@ -1,4 +1,6 @@
 from core.file import File, FileSystem
+from core.colors import color
+from core.const import bcolors
 
 class Host:
   def __init__(self, name:str, root: File | None = None):
@@ -43,6 +45,20 @@ class Host:
   
   def listFileSystems(self) -> list[(str, int, int)]:
     return [(fsname, fs.size, fs.capacity) for fsname, fs in self.mounted.items()]
+
+  
+  # dir operation
+  # lists all files within
+  def ls(self, cwd: File, path: str, all:bool=False, level:int=0):
+    if not self.isDir:
+      print(f"ERROR: Cannot ls inside {self.name}")
+      return
+    if all:
+      print(f"{'  '*level}{color('.', bcolors.DIR)}")
+      print(f"{'  '*level}{color('..', bcolors.DIR)}")
+    for filename, file in sorted(self.data.items(), key=lambda x: x[0]): # type: ignore
+      if filename[0] == '.' and not all: continue  # skip hidden files
+      print(f"{'  '*level}{color(file.name, bcolors.DIR) if file.isDir else file.name}")
 
   def mount(self, fs: FileSystem | File, caller='Host.mount') -> FileSystem:
     
