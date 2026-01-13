@@ -40,6 +40,11 @@ class File:
   def path(self):
     if self.parent is None: return self.name
     return f"{self.parent.path}/{self.name}"
+  
+  @property
+  def root(self):
+    if self.parent is None: return self
+    return self.parent.root
 
   def validateFiles(self, verbose:bool=False) -> bool:
     # Makes sure that all the keys in the directory's data
