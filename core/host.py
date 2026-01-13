@@ -13,6 +13,34 @@ class Host:
   def fs(self):
     return self.currentfs
   
+  def resolvePath(self, cwd: File, path:str) -> File | None:
+    pathlist = path.split("/")
+    if len(pathlist) == 0: return cwd
+    
+    current = cwd
+    step = 0
+
+    if pathlist[0] == self.fs.root.name:
+      current = self.fs.root
+      step = 1
+
+    while step < pathlist and current is not None:
+      nextname = pathlist[step]
+      
+      if nextname == ".":
+        continue
+
+      if nextname == "..":
+        if current.parent is None:
+          continue
+        current = current.parent
+        continue
+
+      current = current.getFile(nextname)
+      step += 1
+
+    return current
+  
   def listFileSystems(self) -> list[(str, int, int)]:
     return [(fsname, fs.size, fs.capacity) for fsname, fs in self.mounted.items()]
 
