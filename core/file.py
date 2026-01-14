@@ -9,7 +9,6 @@ from pathlib import Path
 RESERVED_NAMES = [
   ROOT_NAME,
   "cache",
-  
 ]
 
 class File:
@@ -244,68 +243,6 @@ class FileSystem:
   @property
   def capacity(self):
     return self.root.capacity
-  
-  def resolvePath(self, pathList: list[str], cwd:File|None=None, caller:str='FileSystem.resolvePath') -> File | None:
-    # Parameters:
-    #   pathList = ordered list of filenames through which to traverse
-    # Returns the final file in the path.
-    # (remember that dirs are files too)
-    # If the path to the file does not exist, returns None.
-    path: str = '/'.join(pathList)
-    if len(pathList) <= 0: return cwd
-    current: File | None = self.root if cwd is None else cwd
-
-    # if first filename in the path is the root
-    # start from root
-    if pathList[0]  == self.root.name:
-      current = self.root
-      pathList = pathList[1:]
-
-
-    # handle impossible situations
-    if current is None:
-      print(f"PANIC: Cannot resolve path '{path}': null start")
-    if not current.isDir:
-      print(f"PANIC: Cannot resolve path '{path}': Path start '{current.name}' is not a directory")
-
-    for i in range(len(pathList)):
-
-      name = pathList[i]
-      
-      # empty, don't process
-      if name == "": continue
-      
-      # pathing to current file, continue
-      if name == ".":
-        continue
-      
-      # path to parent
-      # if parent is None, assume file is a root
-      if name == "..":  
-        if current.parent is not None:
-          current = current.parent
-        continue
-      
-      # if file along path is not a directory
-      # return None
-      if i < (len(pathList) - 1) and not current.isDir:
-        print(f"{'ERROR' if caller == '' else caller}: Cannot resolve path '{path}': '{current.name}' is not a directory")
-        return None
-
-      # begin checking next element
-      next = current.getFile(name)
-
-      # Return None if file along path isn't found
-      if next is None:
-        print(f"{'ERROR' if caller == '' else caller}: Cannot resolve path '{path}': '{name}' not found")
-        return None
-
-      current = next
-
-    return current
-
-  def get(self, path: str, caller: str=''):
-    return self.resolvePath(path.split("/"), caller=caller)
 
   def listFiles(self, f: Dir) -> list[File] | None:
     return f.getFiles()
