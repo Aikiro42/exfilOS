@@ -47,7 +47,8 @@ class File:
   
   @property
   def root(self) -> Dir:
-    if self.parent is None: return self
+    if self.parent is None or type(self.parent) is Link:
+      return self
     return self.parent.root
 
   @staticmethod

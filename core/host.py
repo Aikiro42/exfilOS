@@ -1,4 +1,4 @@
-from core.file import File, Dir, FileSystem
+from core.file import File, Dir, Link
 from core.colors import color
 from core.const import bcolors
 
@@ -6,28 +6,63 @@ class Host:
   def __init__(self, name:str, capacity=-1):
     self.name = name
     self.root = Dir('', capacity=capacity)
-    self.root.addFile(Dir('mnt'), caller="Host.__init__")
-    home = Dir('home')
-    self.root.addFile(home, caller="Host.__init__")
-    self.home = home
+    
+    self.mountPoint = Dir('mnt')
+    self.root.addFile(self.mountPoint, caller="Host.__init__")
+    
+    self.home = Dir('home')
+    self.root.addFile(self.home, caller="Host.__init__")
+    
+  @staticmethod
+  def parsePath(path: str) -> list[str]:
+    if path == '': return []
+    if path == '/': return ['']
+    return path.split("/")
 
-  def resolvePath(self, cwd: Dir, path: str) -> File | None:
-    ...
+  def mount(self, root: Dir):
+    # root.parent -> mountPoint
+    uplink = Link('mnt', self.mountPoint)
+    self.root.parent = uplink
+
+    # 'mnt/<root.name>' -> root
+    downlink = Link(self.root.name, self.root)
+    self.mountPoint.addFile(downlink)
   
-  def resolveDir(self, cwd: Dir, path: str) -> tuple | None:
-    ...
-  
-  def createDirectory(self, cwd: Dir, path: str) -> bool:
-    tgt, name = self.resolveDir(cwd, path, dir=True)
-    if tgt is not None:
-      return tgt.addFile(Dir(name))
+  def unmount(self, rootname: str) -> Dir | None:
+    downlink: Link = self.mountPoint.removeFile(rootname)
+    if downlink is None: return None
+    root = downlink.data
+    root.parent = None
 
-  def createFile(self, cwd: Dir, name: str) -> bool:
-    return cwd.addFile(File(name))
+  def resolvePath(self, cwd: Dir, pathlist: list[str]) -> File | None:
+    current = cwd
+    step = 0
+    if pathlist[0] == '':
+      current = self.root
+      step = 1
+    
+    end = len(pathlist)
 
-  def removeDirectory(self, cwd: Dir, name: str, recursive: bool=False) -> File | None:
-    return cwd.removeFile(name, recursive=recursive)
+    while step <= end:
+      nextname = pathlist[step]
+      if nextname == '.':
+        pass
 
+      elif nextname == '..':
+        if current.parent is not None:
+          current = current.parent
+      
+      else:
+        next = current.getFile(nextname)
+        if type(next) is Link:
+          next = next.data
+        if type(next) is File and step < end:
+          return None
+        current = next
+      
+      step += 1
+
+    return current
 
 
     
