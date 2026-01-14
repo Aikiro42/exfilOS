@@ -33,6 +33,7 @@ class Mollusk:
     self.running = False
     self.reloading = False
     self.login(user)
+    self.cwd = self.host.home
     
   def login(self, user: User):
     self.user = user
@@ -126,45 +127,29 @@ class Mollusk:
     os.system("cls" if os.name == "nt" else "clear")
   
   def df(self, cmd: Command | None):
-    for name, size, cap in self.host.listFileSystems():
-      ratio = size/cap
-      textColor = bcolors.INFO
-      if ratio < 0.5:
-        textColor = bcolors.OK
-      elif ratio < 0.8:
-        textColor = bcolors.WARNING
-      else:
-        textColor = bcolors.ERROR
-      print(color(f"{name:>10} : ({ratio:.1f}%) {size} / {cap} B", textColor))
-
+    ...
 
   def cls(self, cmd: Command | None):
     Mollusk.clear()
   
   def ls(self, cmd: Command):
-    if not self.cwd.isDir:
-      print(f"IMPOSSIBLE: Current working directory is a file")
-      return
-    
-    isRecursive = 'r' in cmd.lflags or 'recursive' in cmd.wflags
-    showAll = 'a' in cmd.lflags or 'all' in cmd.wflags
-    if len(cmd.args) > 0:
-      path = cmd.args[0]
-      self.host.fs.ls(path, isRecursive, showAll)
-    else:
-      self.host.fs.ls("", isRecursive, showAll)
+    ...
   
   def cd(self, cmd: Command):
-    if len(cmd.args) <= 0:
-      self.host.fs.cd('')
-    else:
-      self.host.fs.cd(cmd.args[0])
+    if len(cmd.args) < 1:
+      print("cd: Error: Path not specified")
+      return
+    newcwd = self.host.resolvePath(self.cwd, cmd.args[0])
+    if newcwd is None:
+      print("cd: Error: Path does not exist")
+      return
+    self.cwd = newcwd
   
   def mkdir(self, cmd: Command):
-    if len(cmd.args) <= 0:
-      print("ERROR: No directory specified")
+    if len(cmd.args) < 1:
+      print("cd: Error: Path not specified")
       return
-    self.host.fs.mkdir(cmd.args[0])
+    
 
   def mkfile(self, cmd: Command) -> File:
     if len(cmd.args) <= 0:

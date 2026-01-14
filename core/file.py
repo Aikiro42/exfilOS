@@ -12,10 +12,23 @@ RESERVED_NAMES = [
 ]
 
 class File:
-  def __init__(self, name:str, data:str="", parent:Dir|None=None):
+  def __init__(self, name:str, data="", parent:Dir|None=None):
     self.name: str = name
     self.parent: Dir | None = parent
-    self.data: str = data
+    self._data_ = data
+    self._capacity_ = -1
+
+  @property
+  def data(self) -> str:
+    return self._data_
+
+  @data.setter
+  def data(self, value: str):
+    self._data_ = value
+
+  @property
+  def capacity(self) -> int:
+    return -1
   
   @property
   def extension(self):
@@ -24,16 +37,16 @@ class File:
     return s[-1]
   
   @property
-  def size(self):
+  def size(self) -> int:
     return len(self.data)
   
   @property
-  def path(self):
+  def path(self) -> str:
     if self.parent is None: return self.name
     return f"{self.parent.path}/{self.name}"
   
   @property
-  def root(self):
+  def root(self) -> Dir:
     if self.parent is None: return self
     return self.parent.root
 
@@ -60,12 +73,15 @@ class Dir(File):
 
   def __init__(self, name: str, data: Dict[str, File]=None, parent:Dir|None=None, capacity:int=-1):
     super().__init__(name, "", parent)
-    self.data: Dict[str, File]
     if data is None:
-      self.data = {}
+      self._data_ = {}
     else:
-      self.data = data
+      self._data_ = data
     self._capacity_ = capacity
+
+  @property
+  def data(self) -> Dict[str, File]:
+    return self._data_
 
   @property
   def size(self) -> int:
@@ -77,7 +93,7 @@ class Dir(File):
 
   @capacity.setter
   def capacity(self, value: int):
-    if value < 0 or not self.isDir:
+    if value < 0:
       self._capacity_ = -1
     elif self.size <= value:
       self.capacity = value
@@ -85,10 +101,6 @@ class Dir(File):
       print("WARNING: Something attempted to set a file's capacity below its size.")
   
   def addFile(self, file:File, replace:bool=False, caller:str='Dir.addFile') -> bool:
-    # Adds a file into the data of the file
-    # this function is called from.
-    # Returns true on success, false on failure.
-    
     if self.getFile(file.name):
       if not replace:
         print(f"{caller}: cannot add file '{file.name}': already exists")
@@ -108,19 +120,10 @@ class Dir(File):
   def getFiles(self) -> list[File] | None:
     return list(self.data.values())
   
-  def getFile(self, name: str, pop:bool = False) -> File | None:
-    if self.data.get(name, None) is None:
-      return None
-    if pop:
-      return self.data.pop(name)
-    else:
-      return self.data[name]
+  def getFile(self, name: str) -> File | None:
+    return self.data.get(name, None)
   
   def readFile(self, name:str) -> str | None:
-    # Returns the contents of the specified file.
-    # If the file on which this function is called
-    # is not a directory, this function returns
-    # the file's contents instead.
     tgt = self.getFile(name)
     if tgt is None: return None
     if isinstance(tgt, Dir): return None
@@ -136,11 +139,6 @@ class Dir(File):
     # Attempt to retrieve the file to delete
     tgt = self.getFile(name)
     if tgt is None: return None
-
-    # Validate file; Refuse to delete if key-name mismatch
-    if tgt.name != name:
-      print("PANIC: file key-name mismatch")
-      return None
 
     # Check if file is a directory
     # Otherwise, report failure to delete
@@ -209,69 +207,16 @@ class Dir(File):
             if isinstance(d, Dir):
               d.addFile(newFile)
       return files[0]
-  
-class Cache(Dir):
-  
-  def __init__(self, name:str="cache", capacity:int=2**8):  
-    super().__init__(name, capacity=capacity)
-  
-  def toJson(self, jsonPath: str = "cache.json") -> list:
-    return super().toJson(jsonPath)
-  
-  @classmethod
-  def fromDir(cls, dir: Dir) -> Cache:
-    c = cls(name=dir.name, capacity=dir.capacity)
-    c.data = dir.data
-    return c
-  
-class FileSystem:
-  def __init__(self, name:str="~", root:Dir|None=None, capacity:int=-1):
-    self.root: Dir
-    if root is None:
-      self.root = Dir(name, capacity=capacity)
-    else:
-      self.root = root
-    
-  @property
-  def name(self):
-    return self.root.name
 
-  @property
-  def size(self):
-    return self.root.size
+class Link(File):
+  def __init__(self, name: str, data: File = None, parent: Dir | None = None):
+    super().__init__(name, data, parent)
   
   @property
-  def capacity(self):
-    return self.root.capacity
+  def data(self) -> File | None:
+    return self._data_
 
-  def listFiles(self, f: Dir) -> list[File] | None:
-    return f.getFiles()
-
-  def mkfile(self, f: Dir, name: str, replace: bool=False) -> File | None:
-    newFile = File(name)
-    if f.addFile(newFile, replace=replace, caller='FileSystem.mkfile'):
-      return newFile
-    else:
-      return None
-  
-  def mkdir(self, f: Dir, name: str, capacity: int = -1) -> Dir:
-    newFile = Dir(name, capacity=capacity)
-    if f.addFile(newFile, caller='FileSystem.mkfile'):
-      return newFile
-    else:
-      return None
-  
-  def rm(self, f: File, recursive:bool=False, caller:str='FileSystem.rm') -> File | None:
-    return f.parent.removeFile(f.name, recursive=recursive)
-    
-  def mv(self, tgt: File, dst: Dir) -> bool:
-    if tgt.parent is None: return False
-    if tgt.parent.removeFile(tgt.name, recursive=True) is not None:
-      return dst.addFile(tgt, caller='FileSystem.mv')
-      
-  def cp(self, tgt: File, dst: Dir) -> bool:
-    return dst.addFile(tgt, caller='FileSystem.cp')
-
-  def rename(self, tgt: File, name: str) -> bool:
-    return tgt.rename(name)
-  
+  @data.setter
+  def data(self, value: File):
+    if value != self:
+      self._data_ = value
