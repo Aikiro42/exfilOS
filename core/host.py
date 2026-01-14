@@ -1,4 +1,4 @@
-from core.file import File, FileSystem
+from core.file import File, Dir, FileSystem
 from core.colors import color
 from core.const import bcolors
 
@@ -15,18 +15,19 @@ class Host:
   def fs(self):
     return self.currentfs
   
-  def resolvePath(self, cwd: File, path:str) -> File | None:
+  def resolvePath(self, cwd: Dir, path:str) -> File | None:
     pathlist = path.split("/")
     if len(pathlist) == 0: return cwd
     
-    current = cwd
+    current: Dir = cwd
     step = 0
 
-    if pathlist[0] == self.fs.root.name:
-      current = self.fs.root
+    cwdRoot = cwd.root
+    if pathlist[0] == cwdRoot.name:
+      current = cwdRoot
       step = 1
 
-    while step < pathlist and current is not None:
+    while step < len(pathlist) and current is not None:
       nextname = pathlist[step]
       
       if nextname == ".":
@@ -37,28 +38,20 @@ class Host:
           continue
         current = current.parent
         continue
+      
+      next = current.getFile(nextname)
 
-      current = current.getFile(nextname)
+      # non-Dir in the middle of path
+      if not isinstance(next, Dir) and step < len(pathlist) - 1:
+        return None
+
+      current = next
       step += 1
 
     return current
   
   def listFileSystems(self) -> list[(str, int, int)]:
     return [(fsname, fs.size, fs.capacity) for fsname, fs in self.mounted.items()]
-
-  
-  # dir operation
-  # lists all files within
-  def ls(self, cwd: File, path: str, all:bool=False, level:int=0):
-    if not self.isDir:
-      print(f"ERROR: Cannot ls inside {self.name}")
-      return
-    if all:
-      print(f"{'  '*level}{color('.', bcolors.DIR)}")
-      print(f"{'  '*level}{color('..', bcolors.DIR)}")
-    for filename, file in sorted(self.data.items(), key=lambda x: x[0]): # type: ignore
-      if filename[0] == '.' and not all: continue  # skip hidden files
-      print(f"{'  '*level}{color(file.name, bcolors.DIR) if file.isDir else file.name}")
 
   def mount(self, fs: FileSystem | File, caller='Host.mount') -> FileSystem:
     
