@@ -1,38 +1,32 @@
-from core.file import File, Dir, Link
-from core.colors import color
-from core.const import bcolors
+from core.file import File, Dir, Link, FileSystem
 
 class Host:
   def __init__(self, name:str, capacity=-1):
     self.name = name
-    self.root = Dir('', capacity=capacity)
+    self.fs: FileSystem = FileSystem(capacity=capacity)
     
     self.mountPoint = Dir('mnt')
-    self.root.addFile(self.mountPoint, caller="Host.__init__")
+    self.fs.root.addFile(self.mountPoint, caller="Host.__init__")
     
     self.home = Dir('home')
-    self.root.addFile(self.home, caller="Host.__init__")
+    self.fs.root.addFile(self.home, caller="Host.__init__")
     
   @staticmethod
   def parsePath(path: str) -> list[str]:
-    if path == '': return []
-    if path == '/': return ['']
-    return path.split("/")
+    parsed = path.split("/")
 
-  def mount(self, root: Dir):
-    # root.parent -> mountPoint
-    uplink = Link('mnt', self.mountPoint)
-    self.root.parent = uplink
+    # parse backslashes
+    parsebs = []
+    for x in parsed:
+      parsebs += x.split("\\")
+    parsed = parsebs
+    
+    # remove duplicate slashes and current dirs
+    parsed = parsed[0] + [x for x in parsed[1:] if len(x) > 0 and x != "."]
+    return parsed
 
-    # 'mnt/<root.name>' -> root
-    downlink = Link(self.root.name, self.root)
-    self.mountPoint.addFile(downlink)
-  
-  def unmount(self, rootname: str) -> Dir | None:
-    downlink: Link = self.mountPoint.removeFile(rootname)
-    if downlink is None: return None
-    root = downlink.data
-    root.parent = None
+  def mount(self, root: Dir): ...  # add a Link in self.mountPoint that links to a root, set root's parent to a Link
+  def unmount(self, rootname: str) -> Dir | None: ...  # re
 
   def resolvePath(self, cwd: Dir, pathlist: list[str]) -> File | None:
     current = cwd
@@ -63,6 +57,5 @@ class Host:
       step += 1
 
     return current
-
 
     
