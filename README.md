@@ -26,7 +26,91 @@ When you exit the game properly, your progress is saved. Otherwise, your progres
 
 ### Design
 
+This game is a/an:
+- **Text-adventure:** This game is like the text adventures of old, which you play by passing `<command> <object>` commands like `move north`, `open chest`, `attack zombie`. The difference is that this game more intuitively matches text-based adventure interaction mechanics by making it more literal.
+- **Extraction game:** You go into a (randomly-generated) "map" i.e. Host, you loot "treasure" i.e. Files, you kill enemies i.e. threats, you find a place to "extract" i.e. direct link back to `Home` host, before the timer runs out i.e. the Government noticing a lurker.
+- **Puzzle game:** This game is educational in a sense that it aims to gameify various Computer Science subjects like cryptography, DSA.
 
+### Commands
+
+All commands are implemented on the shell.
+
+Commonly known terminal commands: `ls`, `cd`, `cp`, `mv`, `mkdir`
+
+Custom commands:
+- `cache`: accesses your cache filesystem.
+- `download`: "pick up" files. Equivalent to `wget`, `curl`
+- `upload`: "drop" files
+- `send`: "sell" files (only works at `Home`)
+- `open`: "interact" with files.
+- `run`: "attack" with the specified program: see combat
+
+
+### Stats
+- Integrity: Your "health" stat.
+  - The lower your health stat, the higher the chance your commands will fail.
+- RAM: Your cache size.
+- Storage: Your Home storage size.
+- CPU speed: How fast your commands run.
+- Encryption: Your "stealth" stat. The higher it is, the longer your timer, and the less likely Threats will initiate combat with you. Must be capped to a point where
+  - the initiative to engage threats is 100% on you.
+  - the timer is 15 minutes.
+- Daemons: Available "attacks" with cooldowns. One of them is always available but deals the least amount of damage.
+- IPC (Instructions per Cycle): Affects "attack power"
+- Core Count: Affects how many hits an attack can do.
+
+### Equipment
+
+- Case
+- Motherboard
+- CPU
+- CPU Cooler
+- RAM
+- Storage (HDD / SSD / NVMe)
+- GPU
+- Power Supply (PSU)
+- Network Adapter (Ethernet / Wi-Fi)
+- Sound Card
+- Fans
+- Thermal Paste
+- Optional-but-common (still PC-builder intuitive):
+- Optical Drive
+- Expansion Card (PCIe)
+- USB Controller Card
+- Capture Card
+
+### Combat
+
+- Directories have a chance to contain a threat.
+- Whenever you enter or exit a directory with a threat, there is a chance that the threat initiates a "fight" with you.
+
+**Combat loop:**
+1. The threat throws you a puzzle.
+2. You solve the puzzle: submit the wrong answer, and your `Integrity` stat takes a hit.
+3. You have an opportunity to "attack" the threat with an installed program.
+4. The threat takes a hit.
+
+**Attacks**
+- "Attacks" i.e. Defensive Programs are run via `run <program>`.
+- Each program has two effects when run: in-combat and out-of-combat.
+
+### Puzzles
+Common puzzles
+These are basic puzzles that can be done by hand.
+- Type a line of code
+  - The code contains zero-width characters, so that it is 
+- Sort a list
+
+Uncommon puzzles
+- Flatten a list.
+
+Rare puzzles:
+These are common leetcode puzzles.
+- Decrypt text
+- Decompress data
+- Largest substring
+- Inverse binary tree
+- Array implementation of a binary tree
 
 ### Code
 
