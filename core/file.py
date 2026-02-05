@@ -5,6 +5,8 @@ from .colors import color
 from copy import deepcopy
 from pathlib import Path
 
+# For simplicity, the data size unit isn't bytes (because Unicode is a thing), it's "Chomp".
+
 RESERVED_NAMES = [
   ROOT_NAME,
   "cache",
@@ -23,11 +25,14 @@ class File:
   - `size`
   - `path`
   - `root`
+  
   **Methods:**
   - `isDescendantOf`
-  - `generate`
   - `rename`
   - `edit`
+
+  **Static Methods**
+  - `generate`
   """
 
   def __init__(self, name:str, data="", parent:Dir|None=None):
@@ -83,6 +88,9 @@ class File:
   def size(self) -> int:
     """
     This file's size, i.e. the length of the raw data string.
+
+    Since unicode is a thing, the file size unit of measurement in this game
+    is called a "Chomp" (ch)
     """
     return len(self._data_)
   
@@ -158,17 +166,37 @@ class File:
 
 class Link(File):
   """
-  Subclass of `File`. The `data` property of this file is the path to a file within its root.
+  Subclass of `File`.
+  
+  Unlike `File`:
+  - This `File` requires a `parent`.
+  - The `data` property of this file is the path to a file within its root.
+  - The `path` property returns this `File`'s `data`.
+  - This `File` is always 1 ch large.
   """
-  def __init__(self, name: str, target: File, parent: Dir | None = None):
+  def __init__(self, name: str, target: File, parent: Dir):
+    if not target.isDescendantOf(parent.root): return False
     super().__init__(name, target.path, parent)
+
+  @property
+  def size(self) -> int:
+    """
+    The size of this link. Always exactly 1 ch.
+    """
+    return 1
+  
+  @property
+  def path(self) -> str:
+    """
+    Returns the path to this link's target `File`.
+    """
+    return self._data_
 
   def edit(self, new_target: File) -> bool:
     """
-    Changes this link's target.
+    Changes this link's target. The file must be a within this link's root.
     """
     if not new_target.isDescendantOf(self.root): return False
-    self._target_ = new_target
     self._data_ = new_target.path
     return True
 
@@ -196,8 +224,6 @@ class Link(File):
     return current
     
 
-  
-    
 class Dir(File):
 
   def __init__(self, name: str, data: Dict[str, File]=None, parent:Dir|None=None):
