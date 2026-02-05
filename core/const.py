@@ -16,6 +16,7 @@ class bcolors:
     PROFILE = '\033[93m'
     CWD = '\033[95m'
     DIR = '\033[95m'
+    LINK = '\033[95m'
     
     RED = '\033[91m'
     BLUE = '\033[94m'

@@ -70,6 +70,9 @@ class File:
     """
     return self._data_
   
+  def __str__(self) -> str:
+    return self.path + ":" + self._data_
+  
   @property
   def extension(self) -> str:
     """
@@ -233,36 +236,53 @@ class Dir(File):
     self._data_: Dict[str, File] = {} if data is None else data
 
   @property
-  def isDir(self): return True
+  def isDir(self):
+    """
+    Returns `True`.
+    """
+    return True
 
   @property
-  def data(self) -> Dict[str, File]:
-    return self._data_
+  def data(self) -> tuple[File]:
+    """
+    Returns a tuple of the `File`s it contains.
+
+    To get a formatted version for `ls`, try stringifying this `Dir` i.e. via `str()`
+    """
+    return tuple(self._data_.values())
+  
+  def __str__(self) -> str:
+    ls = []
+    for file in self._data_.values():
+      if isinstance(file, Dir):
+        ls += [color(file.name, bcolors.DIR)]
+      elif isinstance(file, Link):
+        ls += [color(file.name, bcolors.LINK)]
+      else:
+        ls += [file.name]
+    return "\n".join(ls)
 
   @property
   def size(self) -> int:
-    return sum(f.size for f in self._data_.values())
-  
-  @property
-  def capacity(self) -> int:
-    return self._capacity_
-
-  @capacity.setter
-  def capacity(self, value: int):
-    if value < 0:
-      self._capacity_ = -1
-    elif self.size <= value:
-      self._capacity_ = value
-    else:
-      print("WARNING: Something attempted to set a file's capacity below its size.")
-  
-  def getFiles(self) -> list[File] | None:
-    return list(self._data_.values())
+    """
+    Returns the sum of the file sizes of the files it contains plus 1 ch.
+    """
+    return sum(f.size for f in self._data_.values()) + 1
   
   def getFile(self, name: str) -> File | None:
+    """
+    Returns the file with the specified name. Returns None if it doesn't exist.
+    """
     return self._data_.get(name, None)
 
   def addFile(self, file:File, replace:bool=False, caller:str='Dir.addFile') -> bool:
+    """
+    Adds a file to this directory.
+    
+    If `replace` is `True`, the argued `file` replaces any existing file with the same name.
+    
+    Returns `True` if successful.
+    """
     if file is self:
       return False
     
@@ -273,28 +293,18 @@ class Dir(File):
       else:
         print(f"f{caller}: Warning: Replacing file '{file.name}'")
     
-    rootCap = self.root.capacity
-    if rootCap > 0 and self.root.size + file.size > rootCap:
-      print(f"{caller}: cannot add file '{file.name}': not enough space")
-      return False
-    
     self._data_[file.name] = file
     file.parent = self
     return True
-  
-  def readFile(self, name:str) -> str | None:
-    tgt = self.getFile(name)
-    if tgt is None: return None
-    if tgt.isDir: return None
-    return tgt.data
-
-  def editFile(self, name:str, new_data:str) -> bool:
-    tgt = self.getFile(name)
-    if tgt is None: return False
-    if tgt.isDir: return False
-    return tgt.edit(new_data)
-    
+      
   def removeFile(self, name:str, recursive:bool=False) -> File | None:    
+    """
+    Removes the file with the specified string.
+
+    If `recursive` is True, this method can remove non-empty folders.
+
+    Returns the removed file if successful.
+    """
     tgt = self.getFile(name)
     if tgt is None: return None
 
@@ -307,6 +317,11 @@ class Dir(File):
     return tgt
   
   def renameFile(self, old_name:str, new_name: str) -> bool:
+    """
+    Renames the file with name `old_name` into `new_name`.
+    
+    Called by its children if `rename` is called.
+    """
     tgt = self.getFile(old_name)
     if tgt is None: return False
 
@@ -317,6 +332,9 @@ class Dir(File):
   
 
 class FileSystem:
+  """
+  Class responsible for handling paths, file edits.
+  """
   
   def __init__(self, capacity, root: Dir | None = None):
     self.root = Dir('') if root is None else root
