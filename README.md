@@ -112,6 +112,23 @@ These are common leetcode puzzles.
 - Inverse binary tree
 - Array implementation of a binary tree
 
+### Loot
+
+`File`s are hashed on generation. If a `File`'s hash matches its hash, then it is authentic. Ergo, files made by the player must always be empty; that way, it is more difficult to make monetary exploits.
+
+The following code is used to generate a file's hash from its data string:
+```python
+# Simple rolling hash, FNV-style; see https://en.wikipedia.org/wiki/Rolling_hash
+def hash(s: str) -> int:
+    h = 2166136261  # FNV offset basis
+    for c in s:
+        h = (h ^ ord(c)) * 16777619
+        h &= 0xFFFFFFFF  # force 32-bit wrap
+    h ^= len(s)
+    return h
+```
+
+
 ### Code
 
 - `User` is the player class. It holds basic game values, and has a "cache" `FileSystem`, which acts as the "backpack".

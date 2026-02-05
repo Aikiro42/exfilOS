@@ -22,6 +22,11 @@ class Command:
     self.lflags = lflags
     self.wflags = wflags
 
+  # Parses a string as a command
+  # Considers quotation marks, variable flags
+  @staticmethod
+  def parse(cmdstr: str) -> Command:...
+
   def __str__(self):
     return self.cmdstr
 

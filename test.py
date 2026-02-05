@@ -1,1 +1,1 @@
-print("".split("/"))
+print("hello".split("/"))
