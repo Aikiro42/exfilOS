@@ -393,14 +393,19 @@ class FileSystem:
 
     return pathlist
 
-  def resolve(self, path: str, fromDir: Dir) -> File | None:
+  def resolve(self, path: str | list[str], fromDir: Dir) -> File | None:
     """
     Returns the file specified by the path. Returns `None` if the file doesn't exist,
     or if the path attempts to traverse inside a `File`.
 
     `Link`s are treated as the files they point to.
     """
-    pathlist: list[str] = self.parsePath(path)
+    pathlist: list[str]
+    if type(path) is list:
+      pathlist = path
+    elif type(path) is str:
+      pathlist = self.parsePath(path)
+    
     current = fromDir
     if pathlist[0] == self.root.name:
       pathlist = pathlist[1:]
@@ -431,12 +436,14 @@ class FileSystem:
     return current
   
 
-  def mkdir(self, path: str):
-    """
-    Creates a directory
-    """
-    ...
+  def mkdir(self, path: str, fromDir: Dir) -> bool:
+    pathlist = self.parsePath(path)
+    parent: Dir | None = self.resolve(pathlist[:-1], fromDir)
+    if parent is None: return False
+    new = Dir(pathlist[-1])
+    return parent.addFile(new)
     
+
   def mkfile(self, path: str, data: str = ''):
     """
     Creates a file at the specified path
