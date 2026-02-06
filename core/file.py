@@ -25,9 +25,11 @@ class File:
   - `size`
   - `path`
   - `root`
+  - `deleted`
   
   **Methods:**
   - `isDescendantOf`
+  - `markDeleted`
   - `rename`
   - `edit`
 
@@ -124,6 +126,12 @@ class File:
     """
     if self._parent_ is None: return self
     return self._parent_.root
+  
+  def markDeleted(self, deleted: bool=True):
+    """
+    Makes the file marks itself as deleted, i.e. sets its `deleted` property to True or the value specified by `deleted`.
+    """
+    self.deleted = deleted and True
   
   def isDescendantOf(self, dir: Dir) -> bool:
     """
@@ -268,16 +276,33 @@ class Dir(File):
   def __str__(self) -> str:
     ls = []
     for filename, file in self._data_.items():
-      if file.deleted:
-        self.removeFile(filename, True)
-        continue
       if isinstance(file, Dir):
-        ls += [color(file.name, bcolors.DIR)]
+        ls += [color(filename, bcolors.DIR)]
       elif isinstance(file, Link):
-        ls += [color(file.name, bcolors.LINK)]
+        ls += [color(filename, bcolors.LINK)]
       else:
-        ls += [file.name]
+        ls += [filename]
     return "\n".join(ls)
+  
+  @property
+  def ls(self) -> tuple[tuple[str, int]]:
+    """
+    Returns a tuple of filenames and integers, with the integers corresponding to the following type:
+    |Type|Thing|
+    |-|-|
+    |`File`|0|
+    |`Link`|1|
+    |`Dir`|2|
+    """
+    ls = []
+    for filename, file in self._data_.items():
+      if isinstance(file, Dir):
+        ls += (filename, 2)
+      elif isinstance(file, Link):
+        ls += (filename, 1)
+      else:
+        ls += (filename, 0)
+    return tuple(ls)
 
   @property
   def size(self) -> int:
@@ -285,6 +310,11 @@ class Dir(File):
     Returns the sum of the file sizes of the files it contains plus 1 ch.
     """
     return sum(f.size for f in self._data_.values()) + 1
+  
+  def markDeleted(self, deleted: bool = True):
+    self.deleted = deleted and True
+    for file in self._data_.values():
+      file.markDeleted(deleted)
   
   def getFile(self, name: str) -> File | None:
     """
@@ -312,12 +342,12 @@ class Dir(File):
     
     self._data_[file.name] = file
     file.parent = self
-    file.deleted = False
+    file.markDeleted(False)
     return True
       
   def removeFile(self, name:str, recursive:bool=False) -> File | None:    
     """
-    Removes the file with the specified string.
+    Removes the `File` with the specified string.
 
     If `recursive` is True, this method can remove non-empty folders.
 
@@ -326,12 +356,14 @@ class Dir(File):
     tgt = self.getFile(name)
     if tgt is None: return None
 
-    if isinstance(tgt, Dir) and not recursive:
-      print(f"rm: cannot remove '{tgt.name}': is directory with contents")
-      return None
+    if isinstance(tgt, Dir):
+      if not recursive:
+        print(f"rm: cannot remove '{tgt.name}': is directory with contents")
+        return None
+
 
     tgt.parent = None
-    tgt.deleted = True
+    tgt.markDeleted(True)
     self._data_.pop(tgt.name)
     return tgt
   
@@ -437,6 +469,9 @@ class FileSystem:
   
 
   def mkdir(self, path: str, fromDir: Dir) -> bool:
+    """
+    Creates a directory at the specified path. Returns `True` if successful.
+    """
     pathlist = self.parsePath(path)
     parent: Dir | None = self.resolve(pathlist[:-1], fromDir)
     if parent is None: return False
@@ -444,11 +479,27 @@ class FileSystem:
     return parent.addFile(new)
     
 
-  def mkfile(self, path: str, data: str = ''):
+  def mkfile(self, path: str, fromDir: Dir, data: str = '') -> bool:
     """
-    Creates a file at the specified path
+    Creates a file at the specified path. Returns `True` if successful.
     """
-    ...
+    pathlist = self.parsePath(path)
+    parent: Dir | None = self.resolve(pathlist[:-1], fromDir)
+    if parent is None: return False
+    new = File(pathlist[-1], data)
+    return parent.addFile(new)
   
-  def ls(self, path: str):
-    ...
+  def rmdir(self, path: str, fromDir: Dir, recursive: bool=False) -> File | None:
+    "Removes the directory. Returns the removed directory if successful."
+    pathlist = self.parsePath(path)
+    tgt: Dir | None = self.resolve(pathlist, fromDir)
+    if tgt is None: return None
+    if not isinstance(tgt, Dir): return None
+    parent = tgt.parent
+    if parent is None: return None
+    return parent.removeFile(tgt.name, recursive)
+
+  def mv(self): ...
+  def cp(self): ...
+  def rename(self): ...
+
