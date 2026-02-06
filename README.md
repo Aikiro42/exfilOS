@@ -137,3 +137,7 @@ def hash(s: str) -> int:
   - It keeps track of the current working directory.
 - `Host` is the "stage" class.
 - `FileSystem` is the "movement" class. It is responsible for parsing and resolving paths.
+
+
+### Misc
+- `type(x) is A` for specificity, `isinstance(x, A)` for subclassism (tf are these words)

@@ -41,6 +41,7 @@ class File:
     self._name_: str = name
     self._parent_: Dir | None = parent
     self._data_ = data
+    self.deleted = False
 
   @property
   def name(self) -> str:
@@ -180,6 +181,7 @@ class Link(File):
   def __init__(self, name: str, target: File, parent: Dir):
     if not target.isDescendantOf(parent.root): return False
     super().__init__(name, target.path, parent)
+    self._target_ = target
 
   @property
   def size(self) -> int:
@@ -194,12 +196,22 @@ class Link(File):
     Returns the path to this link's target `File`.
     """
     return self._data_
+  
+  @property
+  def target(self) -> File:
+    """
+    Returns the targeted file.
+    """
+    if self._target_.deleted or self._target_.path != self._data_:
+      self._target_ = None
+    return self._target_
 
   def edit(self, new_target: File) -> bool:
     """
     Changes this link's target. The file must be a within this link's root.
     """
     if not new_target.isDescendantOf(self.root): return False
+    self._target_ = new_target
     self._data_ = new_target.path
     return True
 
@@ -231,6 +243,8 @@ class Dir(File):
 
   def __init__(self, name: str, data: Dict[str, File]=None, parent:Dir|None=None):
     # super().__init__(name, "", parent)
+    if len(name) <= 0:
+      raise Exception("Cannot make empty named dir")
     self._name_: str = name
     self._parent_: Dir | None = parent
     self._data_: Dict[str, File] = {} if data is None else data
@@ -253,7 +267,10 @@ class Dir(File):
   
   def __str__(self) -> str:
     ls = []
-    for file in self._data_.values():
+    for filename, file in self._data_.items():
+      if file.deleted:
+        self.removeFile(filename, True)
+        continue
       if isinstance(file, Dir):
         ls += [color(file.name, bcolors.DIR)]
       elif isinstance(file, Link):
@@ -295,6 +312,7 @@ class Dir(File):
     
     self._data_[file.name] = file
     file.parent = self
+    file.deleted = False
     return True
       
   def removeFile(self, name:str, recursive:bool=False) -> File | None:    
@@ -313,6 +331,7 @@ class Dir(File):
       return None
 
     tgt.parent = None
+    tgt.deleted = True
     self._data_.pop(tgt.name)
     return tgt
   
@@ -337,7 +356,7 @@ class FileSystem:
   """
   
   def __init__(self, capacity, root: Dir | None = None):
-    self.root = Dir('') if root is None else root
+    self.root = Dir('~') if root is None else root
     self.capacity = capacity
 
   @property
@@ -346,9 +365,83 @@ class FileSystem:
 
   # Normalizes path; removes redundant directory names, `.` calls, repetitive slashes
   # normalizes backslashes
-  def parsePath(self, pathstr: str) -> list[str]: ...  
+  def parsePath(self, pathstr: str, normalize: bool=False) -> list[str]:
+    """
+    Corrects a path it by:
+    - Converting backslashes to slashes
+    - Removing "." calls and empty directories
+    - removing redundant ".." calls, if `normalize` is `True`
 
-  def resolve(self, pathlist: list[str], fromDir: Dir) -> File | None: ...
+    It then returns the list of filenames to traverse.
+    
+    `resolve()` should use the return value of this function.
 
-  def mkdir(self, targetPathList: list[str]): ...
-  def mkfile(self, targetPathList: list[str], filename: str, data: str = ''): ...
+    """
+    pathstr = pathstr.replace("\\", "/")
+    pathlist = [x for x in pathstr.split("/") if x not in (".", "")]
+    if normalize:
+      pathstack = []
+      for file in pathlist:
+        if file == "..":
+          if len(pathstack) <= 0 or pathstack[-1] == "..":
+            pathstack += [file]
+          else:
+            pathstack.pop()
+          continue
+        pathstack += [file]
+      pathlist = pathstack
+
+    return pathlist
+
+  def resolve(self, path: str, fromDir: Dir) -> File | None:
+    """
+    Returns the file specified by the path. Returns `None` if the file doesn't exist,
+    or if the path attempts to traverse inside a `File`.
+
+    `Link`s are treated as the files they point to.
+    """
+    pathlist: list[str] = self.parsePath(path)
+    current = fromDir
+    if pathlist[0] == self.root.name:
+      pathlist = pathlist[1:]
+      current = self.root
+    
+    pathlen = len(pathlist)
+    for i in range(pathlen):
+
+      if current is None:
+        return None
+      
+      # path terminates on file prematurely
+      if not isinstance(current, Dir):
+        if i < pathlen - 1:
+          return None
+        else:
+          return current
+
+      next = current.getFile(pathlen[i])
+
+      if type(next) is Link:
+        if next.target is None:
+          return None
+        next = next.target
+
+      current = next
+    
+    return current
+  
+
+  def mkdir(self, path: str):
+    """
+    Creates a directory
+    """
+    ...
+    
+  def mkfile(self, path: str, data: str = ''):
+    """
+    Creates a file at the specified path
+    """
+    ...
+  
+  def ls(self, path: str):
+    ...
