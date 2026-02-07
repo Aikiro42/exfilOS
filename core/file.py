@@ -335,19 +335,39 @@ class Dir(File):
     """
     return self._data_.get(name, None)
 
-  def addFile(self, file:File, replace:bool=False, caller:str='Dir.addFile') -> bool:
+  def addFile(self, file:File, replace:bool=False, merge:bool=True, test:bool=False, caller:str='Dir.addFile') -> bool:
     """
-    Adds a file to this directory.
+    Adds a file to this directory. If a `Dir` of the same name already exists, and the argued file is a `Dir` itself, the two are merged.
     
-    If `replace` is `True`, the argued `file` replaces any existing file with the same name.
+    - If `replace` is `True`, the argued `file` replaces any existing file with the same name.
+    - If `merge` is `False`, then this function fails upon attempting to merge the argued `Dir` with the existing `Dir`
+    - If `test` is `True`, then this function returns whether it can add the file or not.
     
     Returns `True` if successful.
     """
     if file is self:
       return False
     
-    if self.getFile(file.name):
-      if not replace:
+    existingFile: File | None = self.getFile(file.name)
+
+    # Cases: attempt to add a file with existing file name.
+    if existingFile is not None:
+      # Case 1: Both files are Dirs
+      if isinstance(existingFile, Dir) and isinstance(file, Dir) and merge:
+        canMerge = True
+        for child in file.data:
+          canMerge = existingFile.addFile(child, replace=False, merge=False, test=True)
+        if canMerge:
+          print(f"{caller}: Merging '{file.name}' into '{self.path}'...")
+          for child in file.data:
+            canMerge = existingFile.addFile(child, replace=False, merge=False)      
+          file.parent = self
+          file.markDeleted(False)
+          return True
+        else:
+          print(f"{caller}: Failed: cannot merge dir '{file.name}'")
+      # Case 2: one file isn't a dir
+      elif not replace:
         print(f"{caller}: cannot add file '{file.name}': already exists")
         return False
       else:
@@ -373,7 +393,6 @@ class Dir(File):
       if not recursive:
         print(f"rm: cannot remove '{tgt.name}': is directory with contents")
         return None
-
 
     tgt.parent = None
     tgt.markDeleted(markDeleted)
