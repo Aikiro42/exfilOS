@@ -335,11 +335,13 @@ class Dir(File):
     """
     return self._data_.get(name, None)
 
-  def addFile(self, file:File, replace:bool=False, merge:bool=True, test:bool=False, caller:str='Dir.addFile') -> bool:
+  def addFile(self, file:File, replace:bool=False, merge:bool=True, deepMerge: bool = False, test:bool=False, caller:str='Dir.addFile') -> bool:
     """
-    Adds a file to this directory. If a `Dir` of the same name already exists, and the argued file is a `Dir` itself, the two are merged.
+    Adds a file to this directory. If a `Dir` of the same name already exists, and the argued file is a `Dir` itself,
+    the two are merged. Unless `deepMerge` is set to `True`, merging will fail if the existing file and the file to be
+    added have at least one `Dir` name in common.
     
-    - If `replace` is `True`, the argued `file` replaces any existing file with the same name.
+    - If `replace` is `True`, the argued file replaces any existing file with the same name, whether either are `Dir`s or not.
     - If `merge` is `False`, then this function fails upon attempting to merge the argued `Dir` with the existing `Dir`
     - If `test` is `True`, then this function returns whether it can add the file or not.
     
@@ -352,30 +354,43 @@ class Dir(File):
 
     # Cases: attempt to add a file with existing file name.
     if existingFile is not None:
-      # Case 1: Both files are Dirs
-      if isinstance(existingFile, Dir) and isinstance(file, Dir) and merge:
+      if replace:
+        print(f"f{caller}: Warning: Replacing file '{file.name}'")
+      
+      elif isinstance(existingFile, Dir) and isinstance(file, Dir) and merge:
+        # CASE: Existing and new file are both Dirs
+
+        # Check mergability.
+        # In doing this, merge is false by default to prevent potentially
+        # large recursion stacks. If merge is false, then if the existing file and
+        # the file to be added have a folder in common, then the merge fails,
+        # and the file won't be added.
         canMerge = True
         for child in file.data:
-          canMerge = existingFile.addFile(child, replace=False, merge=False, test=True)
+          canMerge = existingFile.addFile(child, replace=False, merge=deepMerge, test=True)
+          if not canMerge: break
+
         if canMerge:
-          print(f"{caller}: Merging '{file.name}' into '{self.path}'...")
-          for child in file.data:
-            canMerge = existingFile.addFile(child, replace=False, merge=False)      
-          file.parent = self
-          file.markDeleted(False)
+          if not test:
+            print(f"{caller}: Merging '{file.name}' into '{self.path}'...")
+            for child in file.data:
+              canMerge = existingFile.addFile(child, replace=False, merge=False)      
+            file.parent = self
+            file.markDeleted(False)
           return True
         else:
           print(f"{caller}: Failed: cannot merge dir '{file.name}'")
-      # Case 2: one file isn't a dir
+          return False
+      
       elif not replace:
+        # CASE: Either file is a Dir or not
         print(f"{caller}: cannot add file '{file.name}': already exists")
         return False
-      else:
-        print(f"f{caller}: Warning: Replacing file '{file.name}'")
     
-    self._data_[file.name] = file
-    file.parent = self
-    file.markDeleted(False)
+    if not test:
+      self._data_[file.name] = file
+      file.parent = self
+      file.markDeleted(False)
     return True
       
   def removeFile(self, name:str, recursive:bool=False, markDeleted: bool = True) -> File | None:    
@@ -547,7 +562,6 @@ class FileSystem:
     else:
       # Case 2: path exists; put it inside
       return dst_dir.addFile(tgt_file.remove(False), replace=replace)
-    ...
   
   def rename(self, from_path: str, to_name: str) -> bool:
     ...
