@@ -31,6 +31,7 @@ class File:
   - `isDescendantOf`
   - `markDeleted`
   - `rename`
+  - `remove`
   - `edit`
 
   **Static Methods**
@@ -175,6 +176,18 @@ class File:
     if self.isDir: return False
     self._data_ = new_data
     return True
+  
+  def remove(self, markDeleted: bool = True) -> File:
+    """
+    Removes itself from its own parent.
+    - If `markDeleted` is `False`, does not mark itself as deleted.
+
+    Returns itself if successful; returns None otherwise.
+    """
+    if self._parent_.removeFile(self._name_, True, markDeleted):
+      return self
+    else:
+      return None
 
 class Link(File):
   """
@@ -345,11 +358,11 @@ class Dir(File):
     file.markDeleted(False)
     return True
       
-  def removeFile(self, name:str, recursive:bool=False) -> File | None:    
+  def removeFile(self, name:str, recursive:bool=False, markDeleted: bool = True) -> File | None:    
     """
-    Removes the `File` with the specified string.
-
-    If `recursive` is True, this method can remove non-empty folders.
+    Removes the `File` with the specified name.
+    - If `recursive` is True, this method can remove non-empty folders.
+    - If `markDeleted` is True, this method marks itself (and its children, if this is a `Dir`) as deleted.
 
     Returns the removed file if successful.
     """
@@ -363,7 +376,7 @@ class Dir(File):
 
 
     tgt.parent = None
-    tgt.markDeleted(True)
+    tgt.markDeleted(markDeleted)
     self._data_.pop(tgt.name)
     return tgt
   
@@ -499,7 +512,27 @@ class FileSystem:
     if parent is None: return None
     return parent.removeFile(tgt.name, recursive)
 
-  def mv(self): ...
-  def cp(self): ...
-  def rename(self): ...
+  def mv(self, from_path: str, to_path: str, replace: bool = False) -> bool:
+    tgt_file: File = self.resolve(self.parsePath(from_path))
+    if tgt_file is None: return False
+    dst_path = self.parsePath(to_path)
+    dst_dir: Dir = self.resolve(dst_path)
+    if dst_dir is None:
+      # Case 1: nonexistent; recreate from_path as to_path
+      dst_name = dst_path[-1]
+      dst_dir = self.resolve(dst_path[:-1])
+      if dst_dir.addFile(tgt_file.remove(False), replace=replace):
+        return tgt_file.rename(dst_name)
+      else:
+        return False
+    else:
+      # Case 2: path exists; put it inside
+      return dst_dir.addFile(tgt_file.remove(False), replace=replace)
+    ...
+  
+  def rename(self, from_path: str, to_name: str) -> bool:
+    ...
+  
+  def cp(self, from_path: str, to_path: str) -> bool:
+    ...
 
