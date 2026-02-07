@@ -549,7 +549,7 @@ class FileSystem:
     if parent is None: return None
     return parent.removeFile(tgt.name, recursive)
 
-  def mv(self, from_path: str, to_path: str, replace:bool=False, merge:bool=False, deep_merge:bool=False) -> bool:
+  def mv(self, from_path: str, to_path: str, replace:bool=False, merge:bool=True, deep_merge:bool=False) -> bool:
     tgt_file: File = self.resolve(self.parsePath(from_path))
     if tgt_file is None: return False
     dst_path = self.parsePath(to_path)
@@ -585,11 +585,14 @@ class FileSystem:
       dst_dir.addFile(tgt_file.remove(False), replace=replace, merge=merge, deep_merge=deep_merge)
       return True
   
-  def rename(self, from_path: str, to_name: str, merge:bool=False, deep_merge:bool=False) -> bool:
-    tgt_path: list[str] = self.parsePath(from_path)
-    dst_path: list[str] = tgt_path[:-1] + [to_name]
-    return self.mv("/".join(tgt_path), "/".join(dst_path), merge=merge)
+  def rename(self, from_path: str, to_name: str) -> bool:
+    """
+    Renames the targeted_file into the specified name.
+    """
+    tgt_file: File | None = self.resolve(self.parsePath(from_path))
+    if tgt_file is None: return False
+    return tgt_file.rename(to_name)
   
-  def cp(self, from_path: str, to_path: str) -> bool:
+  def cp(self, from_path: str, to_path: str, merge:bool=False, ) -> bool:
     ...
 
