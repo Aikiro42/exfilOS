@@ -545,7 +545,6 @@ class FileSystem:
       current = next
     
     return current
-      
 
   def mkfile(self, from_dir: Dir, path: str, data: str = '', isDir:bool=False) -> bool:
     """
@@ -580,10 +579,58 @@ class FileSystem:
     Returns `True` if successful.
     """
     return self.mkfile(fromDir, path, isDir=True)
+
+  def addFile(self, from_dir: Dir, path: str, file: File, replace:bool=False, merge:bool=True, deep_merge:bool=False, copy:bool=True) -> bool:
+    """
+    Adds a file into the FileSystem at the specified `path`.
+    If the path is nonexistent, the file is added as the specified path.
+    
+    Returns `True` if successful.
+    """
+
+    if file.size > self.free: return False
+    
+    # if file is not to be copied but can't be removed, return False
+    if copy: file = deepcopy(file)
+    elif file.remove(test=True) is None: return False
+
+    # get destination dir
+    dst_pathlist = self.parsePath(path)
+    dst_dir = self.resolve(from_dir, dst_pathlist)
+    
+    addSuccess: bool = False
+
+    if dst_dir is None:
+      # destination does not exist
+      # get second last file, must be dir
+      dst_name = dst_pathlist[-1]
+      dst_pathlist = dst_pathlist[:-1]
+      dst_dir = self.resolve(from_dir, dst_pathlist)
+      if not isinstance(dst_dir, Dir): return False
+      
+      if not copy: file.remove()
+
+      # rename file
+      file.rename(dst_name)
+      
+      # add file
+      addSuccess = dst_dir.addFile(file, replace=replace, merge=merge, deep_merge=deep_merge)
+      if addSuccess:
+        self.free -= file.size
+
+    elif isinstance(dst_dir, Dir):
+      # dir exists, put file there
+
+      if not copy: file.remove()
+      addSuccess = dst_dir.addFile(file, replace=replace, merge=merge, deep_merge=deep_merge)
+      if addSuccess:
+        self.free -= file.size
+    
+    return addSuccess
   
   def rm(self, fromDir: Dir, path: str, recursive: bool = False) -> File | None:
     """
-    Removes the file or directory at the specified path.
+    Removes the file or directory within the FileSystem at the specified path.
 
     Returns the removed file or directory if successful.
     """
