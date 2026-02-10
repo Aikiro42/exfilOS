@@ -666,6 +666,13 @@ class FileSystem:
     Copies a file specified via `from_path` into `to_path`.
     - If `to_path` doesn't exist, the copied file is renamed into the last name in `to_path`.
     - If `mv` is `True`, this removes the file to be copied after the operation is complete.
+    - If `replace` is `True` and `to_path` refers to a non-directory, that non-directory is replaced.
+    - If `merge` is `True` and both `from_path` and `to_path` refers to directories, the directories are merged.
+      - Directory merging can fail if both have immediate descendants (children) that match names.
+      - If `deep_merge` is `True`, and the children with matching names are directories, then those child directories are merged.
+        The merge can still fail if they end up having a common descendant path.
+
+    For more information o 
 
     Returns `True` if the copy is successful.
     """
@@ -683,8 +690,9 @@ class FileSystem:
     to_file = self.resolve(from_dir, dst_path)
 
     # CASES
+    # FIXME: refactor me
     if to_file is None:
-      # dir does not exist, this is a copy-rename operation
+      # destination dir does not exist, rename the file
 
       # get the second last dir in the target path
       dst_name = dst_path[-1]
@@ -710,7 +718,7 @@ class FileSystem:
       return True
     
     elif isinstance(to_file, Dir):
-      # dir exists, move from_file to to_file
+      # destination dir exists, put from_file in there
       
       # TESTS
       # (mv) test if the file can be removed
@@ -723,13 +731,42 @@ class FileSystem:
       to_file.addFile(from_file, replace=replace, merge=merge, deep_merge=deep_merge)
       self.free -= from_file.size
       return True
+    elif replace:
+      # destination dir is actually non-dir, replace
+      to_file = to_file.parent
+      if not isinstance(to_file, Dir): return False
+      
+      # TESTS
+      # (mv) test if the file can be removed
+      if mv and from_file.remove(markDeleted=False, test=True) is None: return False
+      # test if the copied file can be added to the target directory
+      if not to_file.addFile(from_file, replace=replace, merge=merge, deep_merge=deep_merge, test=True): return False
+
+      # execute
+      if mv: from_file.remove(markDeleted=False)
+      to_file.addFile(from_file, replace=replace, merge=merge, deep_merge=deep_merge)
+      self.free -= from_file.size
+
+      return True
+    
     else:
+      # destination dir is non-dir but replace is false, fail
       return False
 
   def mv(self, from_dir: Dir, from_path: str, to_path: str, replace:bool=False, merge:bool=True, deep_merge:bool=False) -> bool:
+    """
+    Moves the file specified by `from_path` into `to_path`. If `to_path` is nonexistent, the file is renamed into `to_path`.
+
+    This is basically a `FileSystem.cp()` call with `mv=True`. For more information, see `FileSystem.cp()`.
+    
+    Returns `True` if successful.
+    """
     return self.cp(from_dir, from_path, to_path, replace=replace, merge=merge, deep_merge=deep_merge, mv=True)
   
   def rename(self, from_dir: Dir, from_path: str, to_name: str) -> bool:
+    """
+    Renames the file specified by `from_path` into `to_name`. Returns `True` if successful.
+    """
     tgt_file: File | None = self.resolve(from_dir, self.parsePath(from_path))
     if tgt_file is None: return False
     return tgt_file.rename(to_name)
