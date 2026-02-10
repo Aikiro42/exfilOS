@@ -118,14 +118,14 @@ class File:
     return f"{self._parent_.path}/{self._name_}"
   
   @property
-  def root(self) -> File:
+  def root(self) -> Dir | None:
     """
     The root File or Dir of this File.
 
     If this file does not have a parent, then
     this property is equivalent to this File itself.
     """
-    if self._parent_ is None: return self
+    if self._parent_ is None: return None
     return self._parent_.root
   
   def markDeleted(self, deleted: bool=True):
@@ -155,7 +155,7 @@ class File:
     data:str = ''.join(secrets.choice(alphabet) for _ in range(size))
     return File(name, data)
 
-  def rename(self, new_name: str, test_dir:Dir=None) -> bool:
+  def rename(self, new_name: str, test_dir:Dir|None=None) -> bool:
     """
     Renames this file with the new name.
     - If the file has no parent, it simply renames itself. Otherwise,
@@ -163,29 +163,34 @@ class File:
     - If `test_dir` is specified, checks if renaming the file as if it is within the dir is successful.
     - If the rename is successful, returns `True`.
     """
+    # test_dir specified; check if it can be renamed there
     if test_dir is not None:
       return test_dir.getFile(new_name) is not None
 
+    # orphan; rename self
     if self._parent_ is None:
       self._name_ = new_name
       return True
+    
+    # not orphan; have parent rename the file
     return self._parent_.renameFile(self._name_, new_name)
   
-  def edit(self, new_data:str, caller:str='File.edit') -> bool:
+  def edit(self, new_data) -> bool:
     """
     Replaces this file's data with `new_data`. Returns `True` if successful.
     """
     if self.isDir: return False
-    self._data_ = new_data
+    self._data_ = str(new_data)
     return True
   
-  def remove(self, markDeleted: bool = True, test:bool = False) -> File:
+  def remove(self, markDeleted: bool = True, test:bool = False) -> File | None:
     """
     Removes itself from its own parent.
     - If `markDeleted` is `False`, does not mark itself as deleted.
 
     Returns itself if successful; returns None otherwise.
     """
+    if self._parent_ is None: return self  # file orphaned; considered removed
     if self._parent_.removeFile(self._name_, True, markDeleted=markDeleted, test=test):
       return self
     else:
@@ -221,21 +226,23 @@ class Link(File):
     return self._data_
   
   @property
-  def target(self) -> File:
+  def target(self) -> File | None:
     """
     Returns the targeted file.
     """
+    if self._target_ is None: return None
     if self._target_.deleted or self._target_.path != self._data_:
       self._target_ = None
     return self._target_
 
-  def edit(self, new_target: File) -> bool:
+  def edit(self, new_data: File) -> bool:
     """
     Changes this link's target. The file must be a within this link's root.
     """
-    if not new_target.isDescendantOf(self.root): return False
-    self._target_ = new_target
-    self._data_ = new_target.path
+    if self.root is None: return False
+    if not new_data.isDescendantOf(self.root): return False
+    self._target_ = new_data
+    self._data_ = new_data.path
     return True
 
   def open(self) -> File | None:
@@ -246,17 +253,18 @@ class Link(File):
     # Get this link's root  If the root is not a dir, we cannot navigate the path.
     if not isinstance(self.root, Dir):
       return None
-    current: Dir = self.root
     
     # The path is guaranteed to be a properly formatted absolute path.
     # No ".", no "..". 
+    current: File | Dir = self.root
     pathList = self._data_.split("/")[1:]
     
     # Simple file path traversal.
     for i in range(len(pathList)):
-      next = current.getFile(pathList[i])
+      if isinstance(current, Dir): next = current.getFile(pathList[i])
+      elif isinstance(current, File) and i < len(pathList) - 1: return None
+      else: return None
       if next is None: return None
-      if isinstance(next, File) and i < len(pathList) - 1: return None
       current = next
     
     return current
@@ -264,7 +272,7 @@ class Link(File):
 
 class Dir(File):
 
-  def __init__(self, name: str, data: Dict[str, File]=None, parent:Dir|None=None):
+  def __init__(self, name: str, data: Dict[str, File] | None =None, parent:Dir|None=None):
     # super().__init__(name, "", parent)
     if len(name) <= 0:
       raise Exception("Cannot make empty named dir")
@@ -273,20 +281,16 @@ class Dir(File):
     self._data_: Dict[str, File] = {} if data is None else data
 
   @property
+  def root(self) -> Dir:
+    if self._parent_ is None: return self
+    return self._parent_.root
+
+  @property
   def isDir(self):
     """
     Returns `True`.
     """
     return True
-
-  @property
-  def data(self) -> tuple[File]:
-    """
-    Returns a tuple of the `File`s it contains.
-
-    To get a formatted version for `ls`, try stringifying this `Dir` i.e. via `str()`
-    """
-    return tuple(self._data_.values())
   
   def __str__(self) -> str:
     ls = []
@@ -300,6 +304,9 @@ class Dir(File):
     return "\n".join(ls)
   
   @property
+  def data(self) -> str:
+    return str(self)
+  
   def ls(self) -> tuple[tuple[str, int]]:
     """
     Returns a tuple of filenames and integers, with the integers corresponding to the following type:
@@ -318,6 +325,13 @@ class Dir(File):
       else:
         ls += (filename, 0)
     return tuple(ls)
+  
+  @property
+  def files(self) -> tuple[File, ...]:
+    """
+    Returns a tuple of all the `File` objects it "contains" i.e. points to.
+    """
+    return tuple(self._data_.values())
 
   @property
   def size(self) -> int:
@@ -337,7 +351,7 @@ class Dir(File):
     """
     return self._data_.get(name, None)
 
-  def addFile(self, file:File, replace:bool=False, merge:bool=True, deep_merge: bool = False, test:bool=False, caller:str='Dir.addFile') -> bool:
+  def addFile(self, file:File, replace:bool=False, merge:bool=True, deep_merge: bool = False, test:bool=False, test_name:str='') -> bool:
     """
     Adds a file to this directory. If a `Dir` of the same name already exists, and the argued file is a `Dir` itself,
     the two are merged. Unless `deep_merge` is set to `True`, merging will fail if the existing file and the file to be
@@ -352,14 +366,15 @@ class Dir(File):
     if file is self:
       return False
     
-    existingFile: File | None = self.getFile(file.name)
+    existingFile: File | None
+    if not test or test_name == '':
+      existingFile = self.getFile(file.name)
+    else:
+      existingFile = self.getFile(test_name)
 
     # Cases: attempt to add a file with existing file name.
     if existingFile is not None:
-      if replace:
-        print(f"f{caller}: Warning: Replacing file '{file.name}'")
-      
-      elif isinstance(existingFile, Dir) and isinstance(file, Dir) and merge:
+      if not replace and isinstance(existingFile, Dir) and isinstance(file, Dir) and merge:
         # CASE: Existing and new file are both Dirs
 
         # Check mergability.
@@ -368,30 +383,27 @@ class Dir(File):
         # the file to be added have a folder in common, then the merge fails,
         # and the file won't be added.
         canMerge = True
-        for child in file.data:
+        for child in file.files:
           canMerge = existingFile.addFile(child, replace=False, merge=deep_merge, test=True)
           if not canMerge: break
 
         if canMerge:
           if not test:
-            print(f"{caller}: Merging '{file.name}' into '{self.path}'...")
-            for child in file.data:
-              canMerge = existingFile.addFile(child, replace=False, merge=False)      
-            file.parent = self
+            for child in file.files:
+              existingFile.addFile(child, replace=False, merge=False)      
+            file._parent_ = self
             file.markDeleted(False)
           return True
         else:
-          print(f"{caller}: Failed: cannot merge dir '{file.name}'")
           return False
       
       elif not replace:
         # CASE: Either file is a Dir or not
-        print(f"{caller}: cannot add file '{file.name}': already exists")
         return False
     
     if not test:
       self._data_[file.name] = file
-      file.parent = self
+      file._parent_ = self
       file.markDeleted(False)
     return True
       
@@ -412,7 +424,7 @@ class Dir(File):
         return None
 
     if not test:
-      tgt.parent = None
+      tgt._parent_ = None
       tgt.markDeleted(markDeleted)
       self._data_.pop(tgt.name)
     return tgt
@@ -427,7 +439,7 @@ class Dir(File):
     if tgt is None: return False
 
     if self.getFile(new_name) is not None: return False
-    tgt.name = new_name
+    tgt._name_ = new_name
     self._data_[new_name] = self._data_.pop(old_name)
     return True
   
@@ -475,7 +487,7 @@ class FileSystem:
 
     return pathlist
 
-  def resolve(self, path: str | list[str], fromDir: Dir) -> File | None:
+  def resolve(self, from_dir: Dir, path: str | list[str]) -> File | None:
     """
     Returns the file specified by the path. Returns `None` if the file doesn't exist,
     or if the path attempts to traverse inside a `File`.
@@ -487,8 +499,11 @@ class FileSystem:
       pathlist = path
     elif type(path) is str:
       pathlist = self.parsePath(path)
+    else:
+      # should not be reached
+      return None
     
-    current = fromDir
+    current = from_dir
     if pathlist[0] == self.root.name:
       pathlist = pathlist[1:]
       current = self.root
@@ -506,7 +521,7 @@ class FileSystem:
         else:
           return current
 
-      next = current.getFile(pathlen[i])
+      next = current.getFile(pathlist[i])
 
       if type(next) is Link:
         if next.target is None:
@@ -516,83 +531,124 @@ class FileSystem:
       current = next
     
     return current
-  
+      
 
-  def mkdir(self, path: str, fromDir: Dir) -> bool:
-    """
-    Creates a directory at the specified path. Returns `True` if successful.
-    """
-    pathlist = self.parsePath(path)
-    parent: Dir | None = self.resolve(pathlist[:-1], fromDir)
-    if parent is None: return False
-    new = Dir(pathlist[-1])
-    return parent.addFile(new)
-    
-
-  def mkfile(self, path: str, fromDir: Dir, data: str = '') -> bool:
+  def mkfile(self, from_dir: Dir, path: str, data: str = '', isDir:bool=False) -> bool:
     """
     Creates a file at the specified path. Returns `True` if successful.
     """
+    # get parent
     pathlist = self.parsePath(path)
-    parent: Dir | None = self.resolve(pathlist[:-1], fromDir)
+    parent = self.resolve(from_dir, pathlist[:-1])
     if parent is None: return False
-    new = File(pathlist[-1], data)
+    if not isinstance(parent, Dir): return False
+    
+    # make new file
+    new: File | Dir 
+    if isDir: new = Dir(pathlist[-1])
+    else: new = File(pathlist[-1], data)
+
+    # add new file
     return parent.addFile(new)
   
-  def rmdir(self, path: str, fromDir: Dir, recursive: bool=False) -> File | None:
-    "Removes the directory. Returns the removed directory if successful."
+  def mkdir(self, fromDir: Dir, path: str) -> bool:
+    """
+    Creates a directory at the specified path. The last name in the string path is the name of the newly created directory.
+    
+    Returns `True` if successful.
+    """
+    return self.mkfile(fromDir, path, isDir=True)
+  
+  def rm(self, fromDir: Dir, path: str, recursive: bool = False) -> File | None:
+    """
+    Removes the file or directory at the specified path.
+
+    Returns the removed file or directory if successful.
+    """
+    # Retrieve the File to be removed
     pathlist = self.parsePath(path)
-    tgt: Dir | None = self.resolve(pathlist, fromDir)
+    tgt = self.resolve(fromDir, pathlist)
     if tgt is None: return None
-    if not isinstance(tgt, Dir): return None
+    if isinstance(tgt, Dir) and (len(tgt.files) > 0 and not recursive): return None
+    
+    # Get its parent
     parent = tgt.parent
     if parent is None: return None
     return parent.removeFile(tgt.name, recursive)
+  
+  def rmdir(self, fromDir: Dir, path: str, recursive: bool=False) -> File | None:
+    """
+    Removes the directory. Returns the removed directory if successful.
+    """
+    return self.rm(fromDir, path, recursive=recursive)
+  
+  def cp(self, from_dir: Dir, from_path: str, to_path: str, replace:bool=False, merge:bool=True, deep_merge:bool=False, mv:bool=False) -> bool:
+    """
+    Copies a file specified via `from_path` into `to_path`.
+    - If `to_path` doesn't exist, the copied file is renamed into the last name in `to_path`.
+    - If `mv` is `True`, this removes the file to be copied after the operation is complete.
 
-  def mv(self, from_path: str, to_path: str, replace:bool=False, merge:bool=True, deep_merge:bool=False) -> bool:
-    tgt_file: File = self.resolve(self.parsePath(from_path))
-    if tgt_file is None: return False
+    Returns `True` if the copy is successful.
+    """
+
+    # retrieve file to copy
+    from_file: File | None = self.resolve(from_dir, self.parsePath(from_path))
+    if from_file is None: return False
+    if not mv: from_file = deepcopy(from_file)
+    
+    # retrieve destination to copy file to
     dst_path = self.parsePath(to_path)
-    dst_dir: File = self.resolve(dst_path)
-    if dst_dir is None:
-      # Case 1: to_path nonexistent; recreate from_path as to_path
+    to_file = self.resolve(from_dir, dst_path)
+
+    # CASES
+    if to_file is None:
+      # dir does not exist, this is a copy-rename operation
+
+      # get the second last dir in the target path
       dst_name = dst_path[-1]
-      dst_dir: Dir = self.resolve(dst_path[:-1])
-
-      # test remove, add, rename
-      if tgt_file.remove(markDeleted=False, test=True) is None:
-        return False
-
-      if not dst_dir.addFile(tgt_file, replace=replace, merge=merge, deep_merge=deep_merge, test=True):
-        return False
-
-      if not tgt_file.rename(dst_name, test_dir=dst_dir):
-        return False
+      dst_path = dst_path[:-1]
+      to_file = self.resolve(from_dir, dst_path)
+      if to_file is None: return False
+      if not isinstance(to_file, Dir): return False
       
-      dst_dir.addFile(tgt_file.remove(False), replace=replace, merge=merge, deep_merge=deep_merge)
-      tgt_file.rename(dst_name)
+      # TESTS
+      # (mv) test if the file can be removed
+      if mv and from_file.remove(markDeleted=False, test=True) is None: return False
+      # (cp) rename the file; this is safe since the file is a deep copy
+      if not mv: from_file.rename(dst_name)
+      # test if the (renamed) file can be added to the target directory
+      if not to_file.addFile(from_file, replace=replace, merge=merge, deep_merge=deep_merge, test=True, test_name=dst_name): return False
+      
+      # execute
+      if mv:
+        from_file.remove(markDeleted=False)
+        from_file.rename(dst_name)
+      to_file.addFile(from_file, replace=replace, merge=merge, deep_merge=deep_merge)
+      
       return True
     
-    elif isinstance(dst_dir, Dir):
-      # Case 2: path exists; put it inside
+    elif isinstance(to_file, Dir):
+      # dir exists, move from_file to to_file
       
-      if tgt_file.remove(markDeleted=False, test=True) is None:
-        return False
+      # TESTS
+      # (mv) test if the file can be removed
+      if mv and from_file.remove(markDeleted=False, test=True) is None: return False
+      # test if the copied file can be added to the target directory
+      if not to_file.addFile(from_file, replace=replace, merge=merge, deep_merge=deep_merge, test=True): return False
       
-      if not dst_dir.addFile(tgt_file, replace=replace, merge=merge, deep_merge=deep_merge, test=True):
-        return False
+      # execute
+      if mv: from_file.remove(markDeleted=False)
+      to_file.addFile(from_file, replace=replace, merge=merge, deep_merge=deep_merge)
       
-      dst_dir.addFile(tgt_file.remove(False), replace=replace, merge=merge, deep_merge=deep_merge)
       return True
+    else:
+      return False
+
+  def mv(self, from_dir: Dir, from_path: str, to_path: str, replace:bool=False, merge:bool=True, deep_merge:bool=False) -> bool:
+    return self.cp(from_dir, from_path, to_path, replace=replace, merge=merge, deep_merge=deep_merge, mv=True)
   
-  def rename(self, from_path: str, to_name: str) -> bool:
-    """
-    Renames the targeted_file into the specified name.
-    """
-    tgt_file: File | None = self.resolve(self.parsePath(from_path))
+  def rename(self, from_dir: Dir, from_path: str, to_name: str) -> bool:
+    tgt_file: File | None = self.resolve(from_dir, self.parsePath(from_path))
     if tgt_file is None: return False
     return tgt_file.rename(to_name)
-  
-  def cp(self, from_path: str, to_path: str, merge:bool=False, ) -> bool:
-    ...
 
