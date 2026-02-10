@@ -4,6 +4,7 @@ from .const import *
 from .colors import color
 from copy import deepcopy
 from pathlib import Path
+from .util import clamp
 
 # For simplicity, the data size unit isn't bytes (because Unicode is a thing), it's "Chomp".
 
@@ -449,13 +450,26 @@ class FileSystem:
   Class responsible for handling paths, file edits.
   """
   
-  def __init__(self, capacity, root: Dir | None = None):
+  def __init__(self, capacity: int, root: Dir | None = None):
     self.root = Dir('~') if root is None else root
-    self.capacity = capacity
+    self._capacity_: int = capacity
+    self._free_: int = capacity
 
   @property
   def name(self):
     return self.root.name
+  
+  @property
+  def capacity(self) -> int:
+    return self._capacity_
+
+  @property
+  def free(self) -> int:
+    return self._free_
+  
+  @free.setter
+  def free(self, x: int):
+    self._free_ = clamp(x, 0, self.capacity)
 
   # Normalizes path; removes redundant directory names, `.` calls, repetitive slashes
   # normalizes backslashes
@@ -548,8 +562,16 @@ class FileSystem:
     if isDir: new = Dir(pathlist[-1])
     else: new = File(pathlist[-1], data)
 
-    # add new file
-    return parent.addFile(new)
+    if new.size > self.free:
+      return False
+    
+    # add file
+    addSuccess = parent.addFile(new)
+
+    if addSuccess:
+      self.free -= new.size
+      
+    return addSuccess
   
   def mkdir(self, fromDir: Dir, path: str) -> bool:
     """
@@ -574,7 +596,10 @@ class FileSystem:
     # Get its parent
     parent = tgt.parent
     if parent is None: return None
-    return parent.removeFile(tgt.name, recursive)
+
+    rmSuccess = parent.removeFile(tgt.name, recursive)
+    if rmSuccess is not None: self.size += rmSuccess.size
+    return rmSuccess
   
   def rmdir(self, fromDir: Dir, path: str, recursive: bool=False) -> File | None:
     """
@@ -595,6 +620,9 @@ class FileSystem:
     from_file: File | None = self.resolve(from_dir, self.parsePath(from_path))
     if from_file is None: return False
     if not mv: from_file = deepcopy(from_file)
+
+    # if copy, check if FileSystem can still accomodate copy of retrieved file
+    if not mv and from_file.size > self.free: return False
     
     # retrieve destination to copy file to
     dst_path = self.parsePath(to_path)
@@ -624,7 +652,7 @@ class FileSystem:
         from_file.remove(markDeleted=False)
         from_file.rename(dst_name)
       to_file.addFile(from_file, replace=replace, merge=merge, deep_merge=deep_merge)
-      
+      self.free -= from_file.size
       return True
     
     elif isinstance(to_file, Dir):
@@ -639,7 +667,7 @@ class FileSystem:
       # execute
       if mv: from_file.remove(markDeleted=False)
       to_file.addFile(from_file, replace=replace, merge=merge, deep_merge=deep_merge)
-      
+      self.free -= from_file.size
       return True
     else:
       return False
