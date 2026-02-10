@@ -584,6 +584,10 @@ class FileSystem:
     """
     Adds a file into the FileSystem at the specified `path`.
     If the path is nonexistent, the file is added as the specified path.
+
+    This is intended to be used when tranferring files between different filesystems.
+    The file must be obtained from the source filesystem via `FileSystem.rm()`, then
+    added to the destination filesystem via `FileSystem.addFile()`.
     
     Returns `True` if successful.
     """
@@ -601,7 +605,7 @@ class FileSystem:
     addSuccess: bool = False
 
     if dst_dir is None:
-      # destination does not exist
+      # destination dir does not exist
       # get second last file, must be dir
       dst_name = dst_pathlist[-1]
       dst_pathlist = dst_pathlist[:-1]
@@ -615,17 +619,20 @@ class FileSystem:
       
       # add file
       addSuccess = dst_dir.addFile(file, replace=replace, merge=merge, deep_merge=deep_merge)
-      if addSuccess:
-        self.free -= file.size
-
+    
     elif isinstance(dst_dir, Dir):
-      # dir exists, put file there
-
+      # destination dir exists, put file there
       if not copy: file.remove()
       addSuccess = dst_dir.addFile(file, replace=replace, merge=merge, deep_merge=deep_merge)
-      if addSuccess:
+      
+    elif replace:
+      # destination dir is actually non-dir, replace
+      dst_dir = dst_dir.parent
+      if not isinstance(dst_dir, Dir): return False
+      addSuccess = dst_dir.addFile(file, replace=replace, merge=merge, deep_merge=deep_merge)
+
+    if addSuccess:
         self.free -= file.size
-    
     return addSuccess
   
   def rm(self, fromDir: Dir, path: str, recursive: bool = False) -> File | None:
