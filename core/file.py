@@ -588,6 +588,8 @@ class FileSystem:
     This is intended to be used when tranferring files between different filesystems.
     The file must be obtained from the source filesystem via `FileSystem.rm()`, then
     added to the destination filesystem via `FileSystem.addFile()`.
+
+    For more info on `replace`, `merge` and `deep_merge`, see `FileSystem.cp()`.
     
     Returns `True` if successful.
     """
