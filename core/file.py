@@ -196,6 +196,28 @@ class File:
       return self
     else:
       return None
+    
+  def to_json(self, parent:int=-1) -> dict:
+    """
+    Returns a dictionary object representative of this file:
+    ```
+    {
+      "name": self.name,
+      "data": self.data,
+      "parent": -1,
+      "type": "dir" | "file" | "link"
+    }
+    ```
+    """
+    fileType = "file"
+    if isinstance(self, Dir): fileType = "dir"
+    elif isinstance(self, Link): fileType = "link"
+    return {
+      "name": self.name,
+      "data": self.data,
+      "parent": parent,
+      "type": fileType
+    }
 
 class Link(File):
   """
