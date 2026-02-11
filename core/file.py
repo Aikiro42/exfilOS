@@ -45,7 +45,19 @@ class File:
     self._name_: str = name
     self._parent_: Dir | None = parent
     self._data_ = data
-    self.deleted = False
+    self._deleted_ = False
+
+  @property
+  def deleted(self) -> bool:
+    """
+    Whether this file is supposed to be deleted or not. Can be used by objects to check if this file
+    should be let go to save memory.
+    """
+    return self._deleted_
+  
+  @deleted.setter
+  def deleted(self, x: bool):
+    self._deleted_ = x
 
   @property
   def name(self) -> str:
@@ -224,15 +236,25 @@ class Link(File):
   Subclass of `File`.
   
   Unlike `File`:
-  - This `File` requires a `parent`.
-  - The `data` property of this file is the path to a file within its root.
-  - The `path` property returns this `File`'s `data`.
-  - This `File` is always 1 ch large.
+  - This has a `target` property which can point into a `File`.
+  - The `data` property of this file is the path to `target`.
+    - Note: `data` may not actually point to an existing file. Run the `validate()` method to make sure it does.
+  - This is always 1 ch large.
   """
-  def __init__(self, name: str, target: File, parent: Dir):
-    if not target.isDescendantOf(parent.root): return False
-    super().__init__(name, target.path, parent)
-    self._target_ = target
+  def __init__(self, name: str, target: str | File | None = None, parent: Dir | None = None):
+    if target is None:
+      # blank link
+      super().__init__(name, parent=parent)
+      self._target_ = None
+    elif isinstance(target, File):
+      # File target
+      super().__init__(name, target.path, parent)
+      self._target_ = target
+    else:
+      # string target
+      super().__init__(name, target, parent)
+      self._target_ = None
+      ...
 
   @property
   def size(self) -> int:
@@ -240,14 +262,7 @@ class Link(File):
     The size of this link. Always exactly 1 ch.
     """
     return 1
-  
-  @property
-  def path(self) -> str:
-    """
-    Returns the path to this link's target `File`.
-    """
-    return self._data_
-  
+    
   @property
   def target(self) -> File | None:
     """
@@ -257,40 +272,71 @@ class Link(File):
     if self._target_.deleted or self._target_.path != self._data_:
       self._target_ = None
     return self._target_
+  
+  @property
+  def data(self):
+    """
+    The path to the supposed target of this Link. May not actually point to its target.
+    """
+    if self.target is None:
+      self._data_ = ""
+    return self._data_
+  
+  def validate(self):
+    """
+    Resets the `data` property such that it is equal to the `target`'s path. If `target` is `None`, sets the `data` property to an empty string.
+    """
+    if self.target is None:
+      self._data_ = ""
+    else:
+      self._data_ = self.target.path
 
-  def edit(self, new_data: File) -> bool:
+  def edit(self, new_data: File | None) -> bool:
     """
-    Changes this link's target. The file must be a within this link's root.
+    Changes this link's target.
+    - `Link`s cannot target orphaned `File`s.
+    - `Link`s cannot target `File`s marked deleted.
     """
-    if self.root is None: return False
-    if not new_data.isDescendantOf(self.root): return False
+    if new_data.parent is None: return False
+    if new_data.deleted: return False
     self._target_ = new_data
-    self._data_ = new_data.path
+    self.validate()
     return True
 
   def open(self) -> File | None:
     """
-    Returns the `File` this link links to. Returns `None` if the file is nonexistent within the root this link is in.
+    Returns the `File` this link targets. Returns `None` if this doesn't target any `File`.
     """
 
     # Get this link's root  If the root is not a dir, we cannot navigate the path.
     if not isinstance(self.root, Dir):
       return None
     
-    # The path is guaranteed to be a properly formatted absolute path.
-    # No ".", no "..". 
-    current: File | Dir = self.root
-    pathList = self._data_.split("/")[1:]
+    # Case: target nonexistent but data is defined; traverse path
+    if self._target_ is None and len(self._data_) > 0:
+      # The path is guaranteed to be a properly formatted absolute path.
+      # No ".", no "..". 
+      current: File | Dir = self.root
+      pathList = self._data_.split("/")[1:]
+      
+      # Simple file path traversal.
+      for i in range(len(pathList)):
+        if isinstance(current, Dir): next = current.getFile(pathList[i])
+        elif isinstance(current, File) and i < len(pathList) - 1: return None
+        else: return None
+        if next is None: return None
+        current = next
+      
+      if isinstance(current, File):
+        # Target was found by traversing the path.
+        self.edit(current)
+        
+      return current
     
-    # Simple file path traversal.
-    for i in range(len(pathList)):
-      if isinstance(current, Dir): next = current.getFile(pathList[i])
-      elif isinstance(current, File) and i < len(pathList) - 1: return None
-      else: return None
-      if next is None: return None
-      current = next
-    
-    return current
+    # Case: data is undefined; validate and return target.
+    else:
+      self.validate()
+      return self._target_
     
 
 class Dir(File):
@@ -473,13 +519,17 @@ class FileSystem:
   """
   
   def __init__(self, capacity: int, root: Dir | None = None):
-    self.root = Dir('~') if root is None else root
+    self._root_ = Dir('~') if root is None else root
     self._capacity_: int = capacity
     self._free_: int = capacity
 
   @property
+  def root(self):
+    return self._root_
+
+  @property
   def name(self):
-    return self.root.name
+    return self._root_.name
   
   @property
   def capacity(self) -> int:
@@ -540,9 +590,9 @@ class FileSystem:
       return None
     
     current = from_dir
-    if pathlist[0] == self.root.name:
+    if pathlist[0] == self._root_.name:
       pathlist = pathlist[1:]
-      current = self.root
+      current = self._root_
     
     pathlen = len(pathlist)
     for i in range(pathlen):
@@ -661,7 +711,7 @@ class FileSystem:
   
   def rm(self, fromDir: Dir, path: str, recursive: bool = False) -> File | None:
     """
-    Removes the file or directory within the FileSystem at the specified path.
+    Removes the file or directory within the FileSystem at the specified path. Does not remove this FileSystem's own root.
 
     Returns the removed file or directory if successful.
     """
@@ -669,6 +719,7 @@ class FileSystem:
     pathlist = self.parsePath(path)
     tgt = self.resolve(fromDir, pathlist)
     if tgt is None: return None
+    if tgt is self._root_: return None
     if isinstance(tgt, Dir) and (len(tgt.files) > 0 and not recursive): return None
     
     # Get its parent
@@ -690,6 +741,7 @@ class FileSystem:
     Copies a file specified via `from_path` into `to_path`.
     - If `to_path` doesn't exist, the copied file is renamed into the last name in `to_path`.
     - If `mv` is `True`, this removes the file to be copied after the operation is complete.
+      - If `mv` is `True` and the file to be moved is the root, then this function fails.
     - If `replace` is `True` and `to_path` refers to a non-directory, that non-directory is replaced.
     - If `merge` is `True` and both `from_path` and `to_path` refers to directories, the directories are merged.
       - Directory merging can fail if both have immediate descendants (children) that match names.
@@ -704,6 +756,7 @@ class FileSystem:
     # retrieve file to copy
     from_file: File | None = self.resolve(from_dir, self.parsePath(from_path))
     if from_file is None: return False
+    if mv and from_file is self.root: return False
     if not mv: from_file = deepcopy(from_file)
 
     # if copy, check if FileSystem can still accomodate copy of retrieved file
@@ -795,3 +848,57 @@ class FileSystem:
     if tgt_file is None: return False
     return tgt_file.rename(to_name)
 
+  def to_json(self) -> list[dict]:
+    """
+    Returns a list of file JSONs.
+    """
+    fileQueue = [(self, -1)]
+    data = []
+    while len(fileQueue) > 0:
+      fp = fileQueue.pop(0)
+      f: File = fp[0]
+      p: int = fp[1]
+      data += [f.to_json(p)]
+      if isinstance(f, Dir):
+        for file in f.files:
+          fileQueue += [(file, len(data) - 1)]
+    return data
+  
+  def from_json(self, json: list[dict]):
+    files = []
+    links: list[Link] = []
+    
+    for fileDict in json:
+      f: File
+      
+      # create object
+      if fileDict["type"] == "file":
+        f = File(fileDict["name"], fileDict["data"])
+      elif fileDict["type"] == "dir":
+        f = Dir(fileDict["name"])
+      elif fileDict["type"] == "link":
+        # special case: generate blank links
+        f = Link(fileDict["name"], fileDict["data"])
+        links += [f]
+      else:
+        print("ERROR: Failed to recreate from JSON: unidentified file type")
+        return
+      
+      # add object to file list
+      files += [f]
+
+      
+      # determine parent
+      parentIndex = fileDict["parent"]
+      parent = None
+      if parentIndex >= 0:
+        parent = files[parentIndex]
+      if isinstance(parent, Dir):
+        parent.addFile(f)
+      
+    
+    # regenerate links
+    for link in links:
+      tgt: File = self.resolve(self.parsePath(link.data))
+      if tgt is None: continue
+      link.edit(tgt)

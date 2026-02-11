@@ -9,4 +9,4 @@ class B(A):
 
 x = B()
 
-print(type(x) is B)
+print(isinstance(x, A))
