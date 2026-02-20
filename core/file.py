@@ -278,7 +278,7 @@ class Link(File):
     """
     The path to the supposed target of this Link. May not actually point to its target.
     """
-    if self.target is None:
+    if self._target_ is None:
       self._data_ = ""
     return self._data_
   
@@ -286,10 +286,10 @@ class Link(File):
     """
     Resets the `data` property such that it is equal to the `target`'s path. If `target` is `None`, sets the `data` property to an empty string.
     """
-    if self.target is None:
+    if self._target_ is None:
       self._data_ = ""
     else:
-      self._data_ = self.target.path
+      self._data_ = self._target_.path
 
   def edit(self, new_data: File | None) -> bool:
     """
@@ -297,6 +297,10 @@ class Link(File):
     - `Link`s cannot target orphaned `File`s.
     - `Link`s cannot target `File`s marked deleted.
     """
+    if new_data is None:
+      self._target_ = None
+      self.validate()
+      return True
     if new_data.parent is None: return False
     if new_data.deleted: return False
     self._target_ = new_data
@@ -610,9 +614,10 @@ class FileSystem:
       next = current.getFile(pathlist[i])
 
       if type(next) is Link:
-        if next.target is None:
+        linkNext = next.open()
+        if linkNext is None:
           return None
-        next = next.target
+        next = linkNext
 
       current = next
     
@@ -865,6 +870,7 @@ class FileSystem:
     return data
   
   def from_json(self, json: list[dict]):
+    
     files = []
     links: list[Link] = []
     
@@ -896,9 +902,10 @@ class FileSystem:
       if isinstance(parent, Dir):
         parent.addFile(f)
       
-    
+    root: Dir = files[0]
+
     # regenerate links
     for link in links:
-      tgt: File = self.resolve(self.parsePath(link.data))
+      tgt: File | None = self.resolve(root, self.parsePath(link.data))
       if tgt is None: continue
       link.edit(tgt)
