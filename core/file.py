@@ -853,11 +853,17 @@ class FileSystem:
     if tgt_file is None: return False
     return tgt_file.rename(to_name)
 
+  def validate_free(self):
+    """
+    Validates the remaining capacity of this FileSystem.
+    """
+    self.free = self.capacity - self.root.size
+
   def to_json(self) -> list[dict]:
     """
     Returns a list of file JSONs.
     """
-    fileQueue = [(self, -1)]
+    fileQueue = [(self.root, -1)]
     data = []
     while len(fileQueue) > 0:
       fp = fileQueue.pop(0)
@@ -870,7 +876,7 @@ class FileSystem:
     return data
   
   def from_json(self, json: list[dict]):
-    
+
     files = []
     links: list[Link] = []
     
