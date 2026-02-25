@@ -73,7 +73,7 @@ class Mollusk:
     self.setAlias("loadgame", "restart", "reload")
     self.setAlias("download", "dl", "wget", "curl")
 
-    self.cwd = self.host.home
+    self.cwd = self.host.fs.root
   
   def setAlias(self, cmd: str, *aliases: str):
     for alias in aliases:
@@ -81,12 +81,9 @@ class Mollusk:
     
   def login(self, user: User):
     self.user = user
-    try:
-      self.home = Host("localhost", File.fromJson(f"{self.user.savepath}/filesys.json"))
-    except Exception as e:
-      print(e)
-      self.home = Host("localhost", File(ROOT_NAME, True, capacity=2**16))
-    self.host = self.home
+    self.home = Host("localhost", 2**16)
+    self.home.load(f"savedata/{user}/filesys.json")
+    self.currentHost = self.home
     self.isHome = True
   
   @property
@@ -114,9 +111,11 @@ class Mollusk:
     if promptString != "":
       s = promptString
     try:
-      fileCompleter = WordCompleter(list(self.host.fs.cwd.data.keys()))
+      fileCompleter = WordCompleter([])  # FIXME:
       cmdstr = self.promptSession.prompt(ANSI(s), completer=fileCompleter)
-      self.run(Mollusk.parse(cmdstr))
+      parsedcmd = Command.parse(cmdstr)
+      if isinstance(parsedcmd, Command):
+        self.run(parsedcmd)
     except EOFError:
       self.stop()
 
@@ -181,26 +180,3 @@ class Mollusk:
       print(color(f"\r[{'|' * barlength}]{end}", bcolors.OK if maxProgress == 100 else bcolors.ERROR), end="")
     print()
     return maxProgress == 100
-
-  @staticmethod
-  def parse(cmd: str) -> Command:
-    # Static function that parses a string into a command
-    split = cmd.split(" ")
-    args = []
-    exe = ""
-    lflags = ""
-    wflags = []
-    for arg in split:
-      if len(arg) <= 0: continue
-      if arg[:2] == "--":
-        wflags += [arg[2:]]
-      elif arg[0] == "-":
-        for lflag in arg[1:]:
-          if lflag in lflags: continue
-          lflags += lflag
-      elif exe == "":
-        exe = arg
-      else:
-        args += [arg]
-      
-    return Command(cmd, exe, args, lflags, wflags)

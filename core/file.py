@@ -538,7 +538,16 @@ class FileSystem:
   @property
   def capacity(self) -> int:
     return self._capacity_
-
+  
+  @capacity.setter
+  def capacity(self, x: int):
+    """
+    You can only add capacity, i.e. the new capacity must be greater than the current capacity.
+    """
+    if x < self._capacity_: self._capacity_ = self._capacity_
+    self._free_ += x - self.capacity
+    self._capacity_ = x
+    
   @property
   def free(self) -> int:
     return self._free_

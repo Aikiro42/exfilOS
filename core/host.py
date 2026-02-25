@@ -11,6 +11,14 @@ class Host:
   @property
   def fs(self):
     return self._fs_
+
+  def updateCapacity(self, new_capacity: int):
+    """
+    Updates the capacity of this host's filesystem.
+    
+    The new capacity must be bigger than the current capacity.
+    """
+    self._fs_.capacity = new_capacity
   
   def link(self, host: Host) -> bool:
     """
