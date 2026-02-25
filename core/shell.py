@@ -15,17 +15,39 @@ import math, os, time
 import threading
 
 class Command:
-  def __init__(self, cmdstr: str, exec: str, args: list[str], lflags:str, wflags:list[str]):
+  def __init__(self, cmdstr: str, exec: str, args: list[str], flags:list[str]):
     self.cmdstr = cmdstr
     self.exec = exec
     self.args = args
-    self.lflags = lflags
-    self.wflags = wflags
+    self.flags = flags
 
   # Parses a string as a command
   # Considers quotation marks, variable flags
   @staticmethod
-  def parse(cmdstr: str) -> Command:...
+  def parse(cmdstr: str) -> Command | None:
+    """
+    Attempts to parse a string into a processable command.
+
+    Returns None if the command string is an invalid command.
+    """
+
+    # Phase 1: split to string
+    phase1 = cmdstr.split(" ")
+    phase2 = []
+    in_str = False
+    for strsec in phase1:
+      if in_str and len(phase2) > 0:
+        phase2[-1] += strsec
+      else:
+        phase2 += [strsec]
+      if "\"" in strsec:
+        in_str = not in_str
+    
+    cmd = phase2[0]
+    args = phase2[1:]
+
+
+    ...
 
   def __str__(self):
     return self.cmdstr

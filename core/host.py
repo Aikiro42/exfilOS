@@ -1,61 +1,80 @@
 from core.file import File, Dir, Link, FileSystem
+import json
+from pathlib import Path
 
 class Host:
   def __init__(self, name:str, capacity=-1):
     self.name = name
-    self.fs: FileSystem = FileSystem(capacity=capacity)
+    self._fs_: FileSystem = FileSystem(capacity)
+    self._linked_hosts_ = {}
+
+  @property
+  def fs(self):
+    return self._fs_
+  
+  def link(self, host: Host) -> bool:
+    """
+    Links a host to this host, allowing traversal between them.
+    """
+    if not host.link(self): return False
+    if self._linked_hosts_.get(host.name, None) is not None: return False
+    self._linked_hosts_[host.name] = host
+    return True
+  
+  def unlink(self, host: Host | str, force:bool=False) -> bool:
+    """
+    Unlinks a host from this host.
+
+    If `force` is true, attempts
+    """
+    if force:
+      try:
+        # attempt to unlink
+        if isinstance(host, Host):
+          host.unlink(self, force=True)
+        else:
+          self._linked_hosts_[host].unlink(self, force=True)
+      except:
+        ...
+      finally:
+        del self._linked_hosts_[host.name if isinstance(host, Host) else host]
+      return True
     
-    self.mountPoint = Dir('mnt')
-    self.fs.root.addFile(self.mountPoint, caller="Host.__init__")
+    if isinstance(host, Host):
+      if not host.unlink(self): return False
+      del self._linked_hosts_[host.name]
     
-    self.home = Dir('home')
-    self.fs.root.addFile(self.home, caller="Host.__init__")
+    else:
+      tgt = self._linked_hosts_[host]
+      if not tgt.unlink(self): return False
+      del self._linked_hosts_[host]
     
-  @staticmethod
-  def parsePath(path: str) -> list[str]:
-    parsed = path.split("/")
+    return True
 
-    # parse backslashes
-    parsebs = []
-    for x in parsed:
-      parsebs += x.split("\\")
-    parsed = parsebs
+  def save(self, jsonpath: str = "savedata/default/filesys.json") -> bool:
+    """
+    Saves the file system of the host into a JSON file specified by the path. Returns `True` if successful.
+    """
+    try:
+      output_file = Path(jsonpath)
+      output_file.parent.mkdir(exist_ok=True, parents=True)
+      with open(jsonpath, "w") as savefile:
+        savefile.write(json.dumps(self._fs_.to_json()))
+      return True
+    except:
+      return False
+
+  def load(self, jsonpath: str = "savedata/default/filesys.json") -> bool:
+    """
+    Loads a file system from a JSON file. Returns `True` if successful.
+    """
+    savestr: str
+    with open(jsonpath, "w") as savefile:
+      savestr = savefile.read()
     
-    # remove duplicate slashes and current dirs
-    parsed = parsed[0] + [x for x in parsed[1:] if len(x) > 0 and x != "."]
-    return parsed
-
-  def mount(self, root: Dir): ...  # add a Link in self.mountPoint that links to a root, set root's parent to a Link
-  def unmount(self, rootname: str) -> Dir | None: ...  # re
-
-  def resolvePath(self, cwd: Dir, pathlist: list[str]) -> File | None:
-    current = cwd
-    step = 0
-    if pathlist[0] == '':
-      current = self.root
-      step = 1
+    saveJSON: dict = json.loads(savestr)
     
-    end = len(pathlist)
-
-    while step <= end:
-      nextname = pathlist[step]
-      if nextname == '.':
-        pass
-
-      elif nextname == '..':
-        if current.parent is not None:
-          current = current.parent
-      
-      else:
-        next = current.getFile(nextname)
-        if type(next) is Link:
-          next = next.data
-        if type(next) is File and step < end:
-          return None
-        current = next
-      
-      step += 1
-
-    return current
-
-    
+    loadedFS: FileSystem | None = FileSystem.from_json(saveJSON)
+    if loadedFS is None: return False
+    self._fs_ = loadedFS 
+    return True
