@@ -1,15 +1,24 @@
+from core.shell import Command
+
 import re
 
 cases = [
-  "-1",
-  "-",
+  'python `C:/Program Files/main.py`'
+  "dwa -1",
+  "haha - -- - -- 'whdahdwahdhawgvhaeg fhrsuighdrg'",
   "--hello",
-  "-",
-  "-shit69",
+  "adad -",
+  "tisro -shit69",
   "-shit",
-  "--shit"
+  "dwdwd --shit",
+  "test -eusi `d w au ha` 'ghsr uigi' \"ghr igrg didgd\" rfsf rgr"
 ]
 
-
 for case in cases:
-  print(f"{case:10} -> {re.fullmatch(r'(-|--)[a-zA-Z]+', case) is not None}")
+  valid = Command.parse(case)
+  print(f"{case}")
+  if valid:
+    print(f"  exec: \t{valid.exec}")
+    print(f"  args: \t{valid.args}")
+    print(f"  flags: \t{valid.flags}")
+  print()

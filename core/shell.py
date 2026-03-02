@@ -31,7 +31,7 @@ class Command:
     return tuple(self.cmdlist[i] for i in self.argi)
   
   @property
-  def flags(self) -> set:
+  def flags(self) -> tuple:
     ret = set()
     for i in self.flagi:
       flag = self.cmdlist[i]
@@ -42,7 +42,7 @@ class Command:
       elif flag.startswith("-"):  # short flag
         for c in flag[1:]:
           ret.add(self.flag_alias.get(c, c))
-    return ret
+    return tuple(ret)
   
   @staticmethod
   def tokenize(cmdstr: str) -> list[str] | None:
@@ -83,9 +83,8 @@ class Command:
 
     argi = []
     flagi = []
-    args = tokens[1:]
-    for i in range(len(args)):
-      token = args[i]
+    for i in range(1, len(tokens)):
+      token = tokens[i]
       if re.fullmatch(r'(-|--)[a-zA-Z]+', token) is not None:
           flagi.append(i)
       else:
