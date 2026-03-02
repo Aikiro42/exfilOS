@@ -1,12 +1,15 @@
-class A:
-  def __init__(self):
-    self.a = 1
+import re
 
-class B(A):
-  def __init__(self):
-    self.a = 2
+cases = [
+  "-1",
+  "-",
+  "--hello",
+  "-",
+  "-shit69",
+  "-shit",
+  "--shit"
+]
 
 
-x = B()
-
-print(isinstance(x, A))
+for case in cases:
+  print(f"{case:10} -> {re.fullmatch(r'(-|--)[a-zA-Z]+', case) is not None}")

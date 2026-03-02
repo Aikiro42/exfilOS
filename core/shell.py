@@ -11,43 +11,87 @@ from prompt_toolkit.formatted_text import ANSI
 from prompt_toolkit.completion import WordCompleter
 
 from random import randint
-import math, os, time
+import math, os, time, re
 import threading
 
 class Command:
-  def __init__(self, cmdstr: str, exec: str, args: list[str], flags:list[str]):
-    self.cmdstr = cmdstr
+  def __init__(self, cmdlist: list[str], exec: str, argi: list[int], flagi:list[int], flag_aliases: dict | None = None):
+    self.cmdlist = cmdlist
     self.exec = exec
-    self.args = args
-    self.flags = flags
+    self.argi = argi
+    self.flagi = flagi
+    self.flag_alias = flag_aliases or {}
+
+  @property
+  def cmdstr(self) -> str:
+    return " ".join(f'"{x}"' if " " in x else x for x in self.cmdlist)
+  
+  @property
+  def args(self) -> tuple:
+    return tuple(self.cmdlist[i] for i in self.argi)
+  
+  @property
+  def flags(self) -> set:
+    ret = set()
+    for i in self.flagi:
+      flag = self.cmdlist[i]
+      
+      if flag.startswith("--"):  # long flag
+        ret.add(flag[2:])
+      
+      elif flag.startswith("-"):  # short flag
+        for c in flag[1:]:
+          ret.add(self.flag_alias.get(c, c))
+    return ret
+  
+  @staticmethod
+  def tokenize(cmdstr: str) -> list[str] | None:
+    pattern = r'''
+        ("[^"]*")         |   # double quotes
+        ('[^']*')         |   # single quotes
+        (`[^`]*`)         |   # backticks
+        (\S+)                 # unquoted token
+    '''
+
+    tokens = []
+    pos = 0
+
+    for match in re.finditer(pattern, cmdstr, re.VERBOSE):
+        if match.start() != pos and not cmdstr[pos:match.start()].isspace():
+            # Found unmatched junk (likely mismatched quotes)
+            return None
+
+        pos = match.end()
+
+        # One of the capture groups will contain the value
+        token = next(g for g in match.groups() if g is not None)
+        tokens.append(token)
+
+    # If leftover non-space text exists, quotes were mismatched
+    if pos != len(cmdstr) and not cmdstr[pos:].isspace():
+        return None
+
+    return tokens
 
   # Parses a string as a command
   # Considers quotation marks, variable flags
   @staticmethod
-  def parse(cmdstr: str) -> Command | None:
-    """
-    Attempts to parse a string into a processable command.
-
-    Returns None if the command string is an invalid command.
-    """
-
-    # Phase 1: split to string
-    phase1 = cmdstr.split(" ")
-    phase2 = []
-    in_str = False
-    for strsec in phase1:
-      if in_str and len(phase2) > 0:
-        phase2[-1] += strsec
-      else:
-        phase2 += [strsec]
-      if "\"" in strsec:
-        in_str = not in_str
+  def parse(cmdstr: str, flag_aliases: dict | None = None) -> Command | None:
     
-    cmd = phase2[0]
-    args = phase2[1:]
+    tokens = Command.tokenize(cmdstr)
+    if tokens is None: return None
 
+    argi = []
+    flagi = []
+    args = tokens[1:]
+    for i in range(len(args)):
+      token = args[i]
+      if re.fullmatch(r'(-|--)[a-zA-Z]+', token) is not None:
+          flagi.append(i)
+      else:
+          argi.append(i)
 
-    ...
+    return Command(tokens, tokens[0], argi, flagi, flag_aliases=flag_aliases)
 
   def __str__(self):
     return self.cmdstr
