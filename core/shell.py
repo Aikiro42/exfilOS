@@ -131,8 +131,8 @@ class Mollusk:
   def login(self, user: User):
     self.user = user
     self.home = Host("localhost", 2**16)
-    self.home.load(f"savedata/{user}/filesys.json")
-    self.currentHost = self.home
+    self.home.load(f"savedata/{user.name}/filesys.json")
+    self.host = self.home
     self.isHome = True
   
   @property
@@ -180,7 +180,11 @@ class Mollusk:
   def cls(self, cmd: Command | None): Mollusk.clear()
   
   def ls(self, cmd: Command):
-    dirPath = cmd.args[0]
+    dirPath: str
+    if len(cmd.args) == 0:
+      dirPath = self.cwd.path
+    else:
+      dirPath = cmd.args[0]
     targetDir: Dir = self.host.fs.resolve(self.cwd, dirPath)
     if isinstance(targetDir, Dir):
       for f in targetDir.files:
@@ -193,11 +197,16 @@ class Mollusk:
   
   def cd(self, cmd: Command):
     dirPath = cmd.args[0]
+    print(dirPath)
     targetDir: Dir = self.host.fs.resolve(self.cwd, dirPath)
     if isinstance(targetDir, Dir):
       self.cwd = targetDir
   
-  def mkdir(self, cmd: Command): ...
+  def mkdir(self, cmd: Command):
+    dirPath = cmd.args[0]
+    if not self.host.fs.mkdir(self.cwd, dirPath):
+      print(f"ERROR: Cannot make dir `{dirPath}`")
+
   def mkfile(self, cmd: Command) -> File: ...
   def rm(self, cmd: Command): ...
   def mv(self, cmd: Command, remove_source:bool=True):...

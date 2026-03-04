@@ -422,6 +422,10 @@ class Dir(File):
     """
     Returns the file with the specified name. Returns None if it doesn't exist.
     """
+    if name == "..":
+      return self.parent
+    if name == ".":
+      return self
     return self._data_.get(name, None)
 
   def addFile(self, file:File, replace:bool=False, merge:bool=True, deep_merge: bool = False, test:bool=False, test_name:str='') -> bool:
@@ -601,6 +605,8 @@ class FileSystem:
     else:
       # should not be reached
       return None
+    
+    if len(pathlist) <= 0: return from_dir
     
     current = from_dir
     if pathlist[0] == self._root_.name:
@@ -907,10 +913,11 @@ class FileSystem:
     """
 
     capacity: int = json["capacity"]
-    files = json["root"]
+    files = []
     links: list[Link] = []
     
-    for fileDict in json:
+    for fileDict in json["root"]:
+
       f: File
       
       # create object

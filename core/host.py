@@ -77,7 +77,7 @@ class Host:
     Loads a file system from a JSON file. Returns `True` if successful.
     """
     savestr: str
-    with open(jsonpath, "w") as savefile:
+    with open(jsonpath, "r") as savefile:
       savestr = savefile.read()
     
     saveJSON: dict = json.loads(savestr)
