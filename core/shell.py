@@ -46,11 +46,17 @@ class Command:
   
   @staticmethod
   def tokenize(cmdstr: str) -> list[str] | None:
+    # pattern = r'''
+    #     ("[^"]*")         |   # double quotes
+    #     ('[^']*')         |   # single quotes
+    #     (`[^`]*`)         |   # backticks
+    #     (\S+)                 # unquoted token
+    # '''
     pattern = r'''
-        ("[^"]*")         |   # double quotes
-        ('[^']*')         |   # single quotes
-        (`[^`]*`)         |   # backticks
-        (\S+)                 # unquoted token
+        "(.*?)"         |   # double quotes
+        '(.*?)'         |   # single quotes
+        `(.*?)`         |   # backticks
+        (\S+)               # unquoted token
     '''
 
     tokens = []

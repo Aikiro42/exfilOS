@@ -3,7 +3,7 @@ from core.shell import Command
 import re
 
 cases = [
-  'python `C:/Program Files/main.py`'
+  'python `C:/Program Files/main.py`',
   "dwa -1",
   "haha - -- - -- 'whdahdwahdhawgvhaeg fhrsuighdrg'",
   "--hello",
@@ -18,7 +18,9 @@ for case in cases:
   valid = Command.parse(case)
   print(f"{case}")
   if valid:
-    print(f"  exec: \t{valid.exec}")
-    print(f"  args: \t{valid.args}")
-    print(f"  flags: \t{valid.flags}")
+    print(f" cmdlist: \t{valid.cmdlist}")
+    print(f"  cmdstr: \t{valid.cmdstr}")
+    print(f"    exec: \t{valid.exec}")
+    print(f"    args: \t{valid.args}")
+    print(f"   flags: \t{valid.flags}")
   print()
