@@ -178,7 +178,19 @@ class Mollusk:
   # COMMANDS
 
   def cls(self, cmd: Command | None): Mollusk.clear()
-  def ls(self, cmd: Command): ...
+  
+  def ls(self, cmd: Command):
+    dirPath = cmd.args[0]
+    targetDir: Dir = self.host.fs.resolve(self.cwd, dirPath)
+    if isinstance(targetDir, Dir):
+      for f in targetDir.files:
+        if isinstance(f, Dir):
+          print(color(f.name + "/", bcolors.DIR))
+        elif isinstance(f, Link):
+          print(color(f.name, bcolors.LINK))
+        else:
+          print(f.name)
+  
   def cd(self, cmd: Command): ...
   def mkdir(self, cmd: Command): ...
   def mkfile(self, cmd: Command) -> File: ...
