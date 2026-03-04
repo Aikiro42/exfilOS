@@ -191,7 +191,12 @@ class Mollusk:
         else:
           print(f.name)
   
-  def cd(self, cmd: Command): ...
+  def cd(self, cmd: Command):
+    dirPath = cmd.args[0]
+    targetDir: Dir = self.host.fs.resolve(self.cwd, dirPath)
+    if isinstance(targetDir, Dir):
+      self.cwd = targetDir
+  
   def mkdir(self, cmd: Command): ...
   def mkfile(self, cmd: Command) -> File: ...
   def rm(self, cmd: Command): ...
