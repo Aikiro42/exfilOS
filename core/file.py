@@ -280,6 +280,8 @@ class Link(File):
     """
     if self._target_ is None:
       self._data_ = ""
+    else:
+      self._data_ = self._target_.path
     return self._data_
   
   def validate(self):
@@ -590,12 +592,13 @@ class FileSystem:
 
     return pathlist
 
-  def resolve(self, from_dir: Dir, path: str | list[str]) -> File | None:
+  def resolve(self, from_dir: Dir, path: str | list[str], get_terminal_links: bool = False) -> File | None:
     """
     Returns the file specified by the path. Returns `None` if the file doesn't exist,
     or if the path attempts to traverse inside a `File`.
 
     `Link`s are treated as the files they point to.
+    If `terminal_links` is `True` and the link is the last file in the path, then the link itself is returned.
     """
     pathlist: list[str]
     if type(path) is list:
@@ -629,6 +632,8 @@ class FileSystem:
       next = current.getFile(pathlist[i])
 
       if type(next) is Link:
+        if get_terminal_links and i == len(pathlist) - 1:
+          return next
         linkNext = next.open()
         if linkNext is None:
           return None
@@ -671,6 +676,22 @@ class FileSystem:
     Returns `True` if successful.
     """
     return self.mkfile(fromDir, path, isDir=True)
+
+  def mklink(self, fromDir: Dir, path: str) -> bool:
+    tgt: File | None = self.resolve(fromDir, path)
+    if tgt is None: return False
+
+    lnk: Link = Link(tgt.name, target=tgt)
+    
+    if lnk.size > self.free:
+      return False
+
+    addSuccess: bool = fromDir.addFile(lnk)
+    
+    if addSuccess:
+      self.free -= lnk.size
+
+    return addSuccess
 
   def addFile(self, from_dir: Dir, path: str, file: File, replace:bool=False, merge:bool=True, deep_merge:bool=False, copy:bool=True) -> bool:
     """
@@ -737,8 +758,10 @@ class FileSystem:
     """
     # Retrieve the File to be removed
     pathlist = self.parsePath(path)
-    tgt = self.resolve(fromDir, pathlist)
-    if tgt is None: return None
+    tgt = self.resolve(fromDir, pathlist, get_terminal_links=True)  # treat links as files if they are last in path
+    if tgt is None:
+      print("no such file")
+      return None
     if tgt is self._root_: return None
     if isinstance(tgt, Dir) and (len(tgt.files) > 0 and not recursive): return None
     
@@ -747,7 +770,7 @@ class FileSystem:
     if parent is None: return None
 
     rmSuccess = parent.removeFile(tgt.name, recursive)
-    if rmSuccess is not None: self.size += rmSuccess.size
+    if rmSuccess is not None: self.free += rmSuccess.size
     return rmSuccess
   
   def rmdir(self, fromDir: Dir, path: str, recursive: bool=False) -> File | None:
@@ -914,7 +937,7 @@ class FileSystem:
 
     capacity: int = json["capacity"]
     files = []
-    links: list[Link] = []
+    links: list[(Link, str)] = []
     
     for fileDict in json["root"]:
 
@@ -927,8 +950,8 @@ class FileSystem:
         f = Dir(fileDict["name"])
       elif fileDict["type"] == "link":
         # special case: generate blank links
-        f = Link(fileDict["name"], fileDict["data"])
-        links += [f]
+        f = Link(fileDict["name"])
+        links += [(f, fileDict["data"])]
       else:
         print("ERROR: Failed to recreate from JSON: unidentified file type")
         return None
@@ -949,10 +972,9 @@ class FileSystem:
 
     newFS = FileSystem(capacity, root)
 
-
     # regenerate links
-    for link in links:
-      tgt: File | None = newFS.resolve(root, newFS.parsePath(link.data))
+    for link, targetPath in links:
+      tgt: File | None = newFS.resolve(root, newFS.parsePath(targetPath))
       if tgt is None: continue
       link.edit(tgt)
 

@@ -196,8 +196,10 @@ class Mollusk:
           print(f.name)
   
   def cd(self, cmd: Command):
+    if len(cmd.args) <= 0:
+      self.cwd = self.host.fs.root
+      return
     dirPath = cmd.args[0]
-    print(dirPath)
     targetDir: Dir = self.host.fs.resolve(self.cwd, dirPath)
     if isinstance(targetDir, Dir):
       self.cwd = targetDir
@@ -207,8 +209,19 @@ class Mollusk:
     if not self.host.fs.mkdir(self.cwd, dirPath):
       print(f"ERROR: Cannot make dir `{dirPath}`")
 
+  def mklink(self, cmd: Command):
+    tgtPath = cmd.args[0]
+    if not self.host.fs.mklink(self.cwd, tgtPath):
+      print(f"ERROR: Cannot make link `{tgtPath}`")
+
   def mkfile(self, cmd: Command) -> File: ...
-  def rm(self, cmd: Command): ...
+  
+  def rm(self, cmd: Command):
+    tgtPath = cmd.args[0]
+    recursive = "r" in cmd.flags
+    if self.host.fs.rm(self.cwd, tgtPath, recursive=recursive) is None:
+      print(f"ERROR: Cannot remove `{tgtPath}`")
+
   def mv(self, cmd: Command, remove_source:bool=True):...
   def cp(self, cmd: Command):...  
   def rename(self, cmd: Command):...
